@@ -1,0 +1,39 @@
+*.pyc
+node_modules
+.DS_Store
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/dist-ssr
+
+# Local envs
+*.local
+
+# Images
+*.jpg
+*.jpeg
+*.png
+*.gif
+
+# Data
+*.csv
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

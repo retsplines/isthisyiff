@@ -35,15 +35,14 @@
         </p>
         <p>
             
-        <div class="buttons">
-            <button class="button" v-on:click="newGame()">
-                I'm 18+
-            </button>
-            <a class="button" href="https://e926.net/">
-                Nope
-            </a>
-        </div>
-
+            <div class="buttons">
+                <button class="button" v-on:click="newGame()">
+                    I'm 18+
+                </button>
+                <a class="button" href="https://e926.net/">
+                    Nope
+                </a>
+            </div>
 
         </p>
     </div>   

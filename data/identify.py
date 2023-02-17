@@ -75,7 +75,7 @@ def make_cropped_image(post, left, top, width, height):
 def main():
 
     # Load the list
-    print('id,orig,crop,rating,score,fav_count,orig_width,orig_height,crop_left,crop_height,crop_width,crop_height')
+    print('id,orig,crop,rating,score,fav_count,orig_width,orig_height,crop_left,crop_top,crop_width,crop_height')
 
     with open(sys.argv[1]) as post_file:
 

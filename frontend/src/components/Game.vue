@@ -1,1 +1,12 @@
-VITE_ITY_BACKEND_URI='http://localhost:8080/'
+<style scoped="true" lang="scss">
+
+</style>
+
+<template>
+    
+    <div class="game">
+
+
+    </div>
+
+</template>

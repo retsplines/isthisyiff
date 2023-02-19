@@ -80,7 +80,7 @@ async function makeGuess(guess: Rating) {
         margin-top: 1rem;
 
         a {
-            color: var(--ity-white);
+            color: var(--color-text);
             text-decoration: underline;
         }
     }

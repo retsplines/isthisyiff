@@ -1,9 +1,15 @@
+$white: #ffffff;
+$correct: #15ae27;
+$incorrect: #ae1515;
+
 :root {
-    --ity-white: rgb(233, 233, 233);
+    --ity-white: #fff;
     --ity-white-pure: #fff;
     --ity-black: #181818;
     --ity-black-pure: #000;
-    --ity-grey: #afafaf;
+    --ity-grey: #4f4f4f;
+    --ity-correct: $correct;
+    --ity-incorrect: $incorrect;
     --ity-nav-height: 50px;
     --ity-border-radius: 20px;
 }

@@ -1,10 +1,16 @@
+<script setup lang="ts">
+
+const emit = defineEmits(['didAcceptIntro'])
+
+</script>
+
 <style scoped="true" lang="scss">
+
 
 .intro {
     font-size: 20px;
     padding: 0 50px;
     max-width: 650px;
-    margin: auto;
 }
 
 .intro {
@@ -24,6 +30,7 @@
 
 </style>
 
+
 <template>
     <div class="intro">
         <p class="first">
@@ -36,7 +43,7 @@
         <p>
             
             <div class="buttons">
-                <button class="button" v-on:click="newGame()">
+                <button class="button" v-on:click="emit('didAcceptIntro')">
                     I'm 18+
                 </button>
                 <a class="button" href="https://e926.net/">

@@ -21,7 +21,13 @@ header {
             margin: auto;
         }
     }
-    margin-bottom: auto !important;
+}
+
+main {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 footer {

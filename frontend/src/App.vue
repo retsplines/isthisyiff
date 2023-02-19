@@ -1,12 +1,74 @@
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { ref } from 'vue';
 import Intro from './components/Intro.vue'
+import Game from './components/Game.vue'
+import { GameClient } from './client/game'
+import type { Challenge } from './client/model/challenge'
+import { preloadImage } from './client/image';
 </script>
 
 <script lang="ts">
 
+const challenges = ref<Challenge[]>([]);
+
+/**
+ * Preload a challenge.
+ */
+async function preloadChallenge(): Promise<Challenge> {
+
+    console.log('Getting a challenge...');
+    const challenge = await GameClient.getChallenge();
+    
+    // Preload the image
+    console.log(`Preloading crop ${challenge.crop.url} for challenge ${challenge.uuid}...`);
+    await preloadImage(challenge.crop.url);
+
+    return challenge;
+}
+
+/**
+ * Start a new challenge.
+ */
+async function nextChallenge() {
+    
+    // Load a new challenge
+    const newChallenge = await preloadChallenge();
+
+    // Once it's loaded, swap to it
+    if (challenges.value.length !== 0) {
+        challenges.value.length = 0;
+    }
+
+    challenges.value.push(newChallenge);
+
+}
 
 </script>
+
+<style scoped="true" lang="scss">
+
+.v-enter-active, .v-leave-active {
+  transition: all 0.5s ease;
+}
+
+.v-leave-to {
+  opacity: 0;
+  z-index: 2;
+  transform: translateX(-200%);
+}
+
+.v-enter-from {
+  opacity: 0;
+  z-index: -1;
+  transform: translateX(200%);
+}
+
+.slide {
+    position: fixed;
+}
+
+
+</style>
 
 <template>
     <header>
@@ -15,8 +77,17 @@ import Intro from './components/Intro.vue'
         </nav>
     </header>
     <main>
-        <!-- UI to allow creation of new games-->
-        <Intro></Intro>
+
+        <TransitionGroup>
+
+            <!-- Show the intro if there are no challenges yet -->
+            <Intro v-if="challenges.length === 0" @did-accept-intro="nextChallenge" :key="'intro-text'" class="slide"></Intro>
+
+            <!-- Show the challenge from the list otherwise-->
+            <Game v-for="challenge in challenges" :challenge="challenge" :key="challenge.uuid" v-on:next-game-please="nextChallenge" class="slide"></Game>
+
+        </TransitionGroup>
+
     </main>
     <footer>
         made with love by <a href="http://github.com/retsplines" target="_blank">@retsplines</a>

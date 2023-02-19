@@ -50,12 +50,14 @@ async function makeGuess(guess: Rating) {
 }
 
 .result {
-    margin-top: 2rem;
+    margin: 2rem auto auto auto;
+    max-width: 500px;
 
     .answer {
 
         padding: 0.5rem 0;
         color: var(--ity-white);
+        border-radius: 10px;
 
         .headline {
             font-weight: bold;

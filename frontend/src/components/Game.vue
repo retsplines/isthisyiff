@@ -43,6 +43,7 @@ async function makeGuess(guess: Rating) {
 }
 
 .controls {
+    margin-top: 2rem;
     button {
         margin: 10px;
     }
@@ -54,14 +55,16 @@ async function makeGuess(guess: Rating) {
     .answer {
 
         padding: 0.5rem 0;
-        color: #fff;
+        color: var(--ity-white);
 
         .headline {
             font-weight: bold;
             font-size: 1.65rem;
         }
 
-        .detail {}
+        .detail, strong {
+            color: var(--ity-white);
+        }
 
         &.correct {
             background-color: $correct;
@@ -75,6 +78,11 @@ async function makeGuess(guess: Rating) {
 
     .result-controls {
         margin-top: 1rem;
+
+        a {
+            color: var(--ity-white);
+            text-decoration: underline;
+        }
     }
 }
 
@@ -103,12 +111,11 @@ async function makeGuess(guess: Rating) {
                         You're the first to guess this image!
                     </span>
                     <span v-else>
-                        {{ answer.statistics.correct_guesses }} have guessed this image correctly,
-                        {{ answer.statistics.incorrect_guesses }} have guessed incorrectly.
+                        <strong>{{ answer.statistics.correct_guesses }}</strong> have guessed this image correctly,
+                        <strong>{{ answer.statistics.incorrect_guesses }}</strong> have guessed incorrectly.
                     </span>
                 </p>
             </div>
-
             
             <div class="result-controls">
                 <a :href="answer.source.url" target="_blank">See it on e621</a> or play 

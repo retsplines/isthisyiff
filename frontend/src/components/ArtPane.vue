@@ -20,6 +20,12 @@ watch(props, (newProps) => {
     }
 });
 
+function goToPost() {
+    if (props.answer) {
+        window.open(props.answer.source.url);
+    }
+}
+
 </script>
 
 <style scoped="true" lang="scss">
@@ -33,12 +39,19 @@ watch(props, (newProps) => {
     height: 50vh;
     max-width: 100%;
     margin: auto;
+
+    &.has-answer {
+        cursor: pointer;
+    }
 }
 
 </style>
 
 <template>
     
-        <div class="artbox" v-bind:style="artboxStyle"></div>
+        <div class="artbox"
+            v-on:click="goToPost"
+            v-bind:class="answer ? 'has-answer': ''"
+            v-bind:style="artboxStyle"></div>
 
 </template>

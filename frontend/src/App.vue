@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { type CSSProperties, ref } from 'vue';
 import Intro from './components/Intro.vue'
 import Game from './components/Game.vue'
 import { GameClient } from './client/game'
@@ -10,6 +10,8 @@ import { preloadImage } from './client/image';
 <script lang="ts">
 
 const challenges = ref<Challenge[]>([]);
+
+const backdropStyle = ref<CSSProperties>({});
 
 /**
  * Preload a challenge.
@@ -40,6 +42,9 @@ async function nextChallenge() {
     }
 
     challenges.value.push(newChallenge);
+    
+    // Update the backdrop to match
+    backdropStyle.value.backgroundImage = `url('${newChallenge.crop.url}')`;
 
 }
 
@@ -67,6 +72,16 @@ async function nextChallenge() {
     position: fixed;
 }
 
+.backdrop {
+    transition: all 1s ease;
+    background-size: cover;
+    background-repeat: no-repeat;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    opacity: 0.1;
+    filter: blur(10px);
+}
 
 </style>
 
@@ -77,6 +92,8 @@ async function nextChallenge() {
         </nav>
     </header>
     <main>
+
+        <div class="backdrop" v-bind:style="backdropStyle"></div>
 
         <TransitionGroup>
 

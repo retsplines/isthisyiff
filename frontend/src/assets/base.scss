@@ -32,6 +32,7 @@ $incorrect: #ae1515;
 }
 
 html, body {
+    overflow-y: hidden;
     color: var(--color-text);
     background-color: var(--color-background);
     // Weird speckly noise effect. Not sure if I like this or not.

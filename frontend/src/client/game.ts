@@ -1,6 +1,7 @@
 import type { Answer } from "./model/answer";
 import type { Challenge } from "./model/challenge";
 import type { Rating } from "./model/rating";
+import type { ReportReason } from "./model/report-reason";
 
 export class GameClient {
 
@@ -30,6 +31,21 @@ export class GameClient {
             throw Error('Failed to load the answer');
         }
         return await response.json() as Answer;
+    }
+
+    /**
+     * Submit a post report.
+     * @param guess
+     */
+    public static async reportPost(uuid: string, reason: ReportReason): Promise<void> {
+        const reportUrl = `${import.meta.env.VITE_ITY_BACKEND_URI}challenge/${uuid}/report/${reason}`;
+        const response = await fetch(reportUrl, {
+            method: "POST"
+        });
+        if (response.status !== 200) {
+            throw Error('Failed to report the post');
+        }
+        return;
     }
 
 }

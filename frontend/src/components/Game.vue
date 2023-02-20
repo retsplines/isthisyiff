@@ -4,6 +4,7 @@ import { preloadImage } from '@/client/image';
 import type { Challenge } from '@/client/model/challenge';
 import type { Answer } from '@/client/model/answer';
 import type { Rating } from '@/client/model/rating';
+import type { ReportReason } from '@/client/model/report-reason';
 import { ref } from 'vue';
 import ArtPane from './ArtPane.vue'
 
@@ -14,6 +15,7 @@ const props = defineProps<{
 }>()
 
 const answer = ref<Answer|null>(null);
+const reportingState = ref<'closed'|'choosing'|'sending'|'thanks'>('closed');
 
 /**
  * Submit a guess.
@@ -27,6 +29,17 @@ async function makeGuess(guess: Rating) {
     console.log(`Preloading orig ${answerResponse.orig.url} before revealing...`);
     await preloadImage(answerResponse.orig.url);
     answer.value = answerResponse;
+}
+
+/**
+ * Report the post.
+ * 
+ * @param reason
+ */
+async function reportPostFor(reason: ReportReason) {
+    reportingState.value = 'sending';
+    await GameClient.reportPost(props.challenge.uuid, reason);
+    reportingState.value = 'thanks';
 }
 
 </script>
@@ -55,6 +68,7 @@ async function makeGuess(guess: Rating) {
 
     .answer {
 
+        cursor: pointer;
         padding: 0.5rem 0;
         color: var(--ity-white);
 
@@ -74,10 +88,19 @@ async function makeGuess(guess: Rating) {
         &.correct {
             background-color: $correct;
             border-bottom: 5px solid darken($correct, 10);
+
+            &:hover {
+                border-bottom: 5px solid darken($correct, 5);
+                background-color: lighten($correct, 5);
+            }
         }
         &.incorrect {
             background-color: $incorrect;
             border-bottom: 5px solid darken($incorrect, 10);
+            &:hover {
+                border-bottom: 5px solid darken($incorrect, 5);
+                background-color: lighten($incorrect, 5);
+            }
         }
     }
 
@@ -87,6 +110,12 @@ async function makeGuess(guess: Rating) {
         a {
             color: var(--color-text);
             text-decoration: underline;
+        }
+
+        .report-buttons {
+            button {
+                margin: 0 0.25rem;
+            }
         }
     }
 }
@@ -106,7 +135,7 @@ async function makeGuess(guess: Rating) {
 
         <div class="result" v-if="answer">
             
-            <div class="answer" :class="answer.result.actual !== answer.result.guess ? 'incorrect' : 'correct'">
+            <div class="answer" v-on:click="emit('nextGamePlease')" :class="answer.result.actual !== answer.result.guess ? 'incorrect' : 'correct'">
                 <span class="headline">
                     {{ answer.result.actual !== answer.result.guess ? 'Nope, it was ' : 'Correct - it was ' }} 
                     {{ answer.result.actual === 'e' ? 'Yiff' : 'Safe' }}!
@@ -116,15 +145,28 @@ async function makeGuess(guess: Rating) {
                         You're the first to guess this image!
                     </span>
                     <span v-else>
-                        <strong>{{ answer.statistics.correct_guesses }}</strong> have guessed this image correctly,
-                        <strong>{{ answer.statistics.incorrect_guesses }}</strong> have guessed incorrectly.
+                        <strong :title="answer.statistics.correct_guesses + ' correct, ' + answer.statistics.incorrect_guesses + ' incorrect'">
+                            {{ Math.round((answer.statistics.correct_guesses / (answer.statistics.correct_guesses + answer.statistics.incorrect_guesses)) * 100) }}%
+                        </strong> guessed this image correctly.
                     </span>
+                    <strong> Play again? </strong>
                 </p>
             </div>
             
             <div class="result-controls">
-                <a :href="answer.source.url" target="_blank">See it on e621</a> or play 
-                <button class="button is-small" v-on:click="emit('nextGamePlease')">Another?</button>
+                <a :href="answer.source.url" target="_blank">See it on e621</a> &nbsp; | &nbsp;
+                <a v-if="reportingState === 'closed'" v-on:click="reportingState = 'choosing'">Report Post</a>
+                <span v-else-if="reportingState === 'choosing'" class="report-buttons">
+                    <button class="button is-small" title="Shouldn't be shown on IsThisYiff" v-on:click="reportPostFor('unsuitable')">Unsuitable</button>
+                    <button class="button is-small" title="Copyright complaint" v-on:click="reportPostFor('copyright')">Copyright</button>
+                    <button class="button is-small" title="Has the wrong rating" v-on:click="reportPostFor('wrong_rating')">It's {{ answer.result.actual === 'e' ? 'Safe' : 'Yiff' }}!</button>
+                </span>
+                <span v-else-if="reportingState === 'sending'">
+                    Please wait...
+                </span>
+                <span v-else-if="reportingState === 'thanks'">
+                    Thanks, I'll look into this.
+                </span>
             </div>
         </div>
 

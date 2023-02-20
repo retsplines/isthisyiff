@@ -1,3 +1,4 @@
+import os
 import sys
 import logging
 import uuid
@@ -25,8 +26,14 @@ E621_POST_URL = 'https://e621.net/posts/'
 # Define report reasons
 REPORT_REASONS = ['wrong_rating', 'copyright', 'unsuitable']
 
+# Define the SNS topic for reports
+REPORTS_SNS_ARN = os.environ.get('REPORTS_SNS_ARN', None)
+
 # Creating the DynamoDB Client
 dynamodb_client = boto3.client('dynamodb', region_name="eu-west-1")
+
+# Create an SNS client
+sns_client = boto3.client('sns')
 
 def get_random_post(attempts=5):
     """
@@ -85,7 +92,22 @@ def increment_report_reason_count(post_uuid, reason):
     
     # Suitable reason?
     if reason not in REPORT_REASONS:
-        raise Error('Invalid report reason. Options are %s' % (','.join(REPORT_REASONS)))
+        raise Exception('Invalid report reason. Options are %s' % (','.join(REPORT_REASONS)))
+    
+    # Publish a notification
+    sns_client.publish(
+        TargetArn=REPORTS_SNS_ARN,
+        Message=json.dumps({
+            'default': json.dumps({
+                'uuid': post_uuid,
+                'reason': reason
+            }),
+            'email': 'A user reported a post for reason: ' + reason + '<br><br>' + \
+                'View: https://isthisyiff.retsplin.es/#' + post_uuid
+        }),
+        MessageStructure='json',
+        Subject='Reported content on IsThisYiff: ' + post_uuid + ' (' + reason + ')'
+    )
     
     dynamodb_client.update_item(
         TableName=TABLE_NAME,

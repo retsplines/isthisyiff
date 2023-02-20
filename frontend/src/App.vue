@@ -21,7 +21,7 @@ const challengeDeeplinkUuid = hash.substring(hash.indexOf('#') + 1);
 if (challengeDeeplinkUuid.length >= 36) {
     // We have a deeplinked challenge, go straight to it
     console.log(`Going directly to deeplinked challenge ${challengeDeeplinkUuid}`);
-    await nextChallenge(challengeDeeplinkUuid);
+    nextChallenge(challengeDeeplinkUuid);
 }
 
 

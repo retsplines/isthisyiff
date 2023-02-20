@@ -118,11 +118,13 @@ def route_post_report_challenge(event, context):
     post_uuid = event['pathParameters']['post_uuid']
     reason = event['pathParameters']['reason']
     
+    # Find the post to ensure it exists
+    post = get_post(post_uuid)
+    
     # Update the post
     increment_report_reason_count(post_uuid, reason)
     return build_json_response({})
     
-
 def route_get_challenge(event, context):
     """
     GET /challenge

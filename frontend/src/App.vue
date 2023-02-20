@@ -75,6 +75,8 @@ async function nextChallenge(uuid?: string) {
  */
 async function backToIntro() {
     challenges.value.length = 0;
+    window.location.hash = '';
+    backdropStyle.value.backgroundImage = 'none';
 }
 
 </script>

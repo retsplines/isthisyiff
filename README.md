@@ -16,7 +16,7 @@ The [default blacklist](https://e621.net/help/blacklist) was applied throughout 
 
 The trained model scored an average precision of 0.984 and an overall recall of 0.900, giving it an [F1 score](https://en.wikipedia.org/wiki/F-score) of 0.940, which was acceptable for this use case.
 
-I then took images matching `anthro simple_background` for the `e` and `s` ratings and processed them with the model, producing a cropped version of each image around the face identified with the highest confidence. After any failures (due to large image sizes, unsuitable formats, failure to detect a face, etc), I still had a large number of cropped faces. The original filename, cropped filename, dimensions, and other metadata were recorded in a DynamoDB table for use in the application.
+I then took images matching `solo anthro simple_background -human -comic -real -monochrome -absurd_res` for the `e` and `s` ratings and processed them with the model, producing a cropped version of each image around the face identified with the highest confidence. After any failures (due to large image sizes, unsuitable formats, failure to detect a face, etc), I still had a large number of cropped faces. The original filename, cropped filename, dimensions, and other metadata were recorded in a DynamoDB table for use in the application.
 
 ## Components
 

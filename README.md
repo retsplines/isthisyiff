@@ -10,7 +10,7 @@ To produce the dataset, I first had to train a model to detect faces in anthropo
 
     solo anthro simple_background -human -absurd_res -monochrome -real -comic
 
-Then a further 250 images with the `e` (Explicit) rating with the same criteria. I also took 250 random images from [ThisFursonaDoesNotExist](https://thisfursonadoesnotexist.com/). After curating the dataset manually to remove any unsuitable images (faces overly obscured, too stylised to be meaningful, etc) I was left with 600 images, in which all faces were labelled using bounding boxes.
+Then a further 250 images with the `e` (Explicit) rating with the same criteria. I also took 250 random images from [ThisFursonaDoesNotExist](https://thisfursonadoesnotexist.com/). After curating the dataset manually to remove any unsuitable images (faces overly obscured, too stylised to be meaningful, etc) I was left with 600 images, in which all faces were labelled using bounding boxes. Many thanks to Step for helping out with this particularly tedious job!
 
 The [default blacklist](https://e621.net/help/blacklist) was applied throughout - the application was not trained on and will never display images covered by the default blacklist.
 

@@ -36,7 +36,7 @@ function goToPost() {
     background-repeat: no-repeat;
     background-position: center center;
     background-size: contain;
-    height: 50vh;
+    height: 47.5vh;
     max-width: 100%;
     margin: auto;
 

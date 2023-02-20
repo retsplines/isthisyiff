@@ -106,6 +106,7 @@ async function backToIntro() {
 .backdrop {
     transition: all 1s ease;
     background-size: cover;
+    background-position: center center;
     background-repeat: no-repeat;
     position: relative;
     width: 100%;

@@ -16,8 +16,14 @@ logger.addHandler(stdout_handler)
 TABLE_NAME = "isthisyiff"
 
 # Define the resource root
-RESOURCE_CROPPED_ROOT_URL = 'https://source-images.isthisyiff.retsplin.es/crop/'
-RESOURCE_FULL_ROOT_URL = 'https://source-images.isthisyiff.retsplin.es/'
+RESOURCE_CROP_ROOT_URL = 'https://source-images.isthisyiff.retsplin.es/crop/'
+RESOURCE_ORIG_ROOT_URL = 'https://source-images.isthisyiff.retsplin.es/'
+
+# Define e621 URL for source links
+E621_POST_URL = 'https://e621.net/posts/'
+
+# Define report reasons
+REPORT_REASONS = ['wrong_rating', 'copyright', 'unsuitable']
 
 # Creating the DynamoDB Client
 dynamodb_client = boto3.client('dynamodb', region_name="eu-west-1")
@@ -39,8 +45,59 @@ def get_random_post(attempts=5):
         except Exception as e:
             logging.warn('get_random_post() attempt %d failed: %s' % (attempt, e))
 
-    raise RuntimeError('Failed to retrieve a random post after %d attempts' % attempts)
+    raise Exception('Failed to retrieve a random post after %d attempts' % attempts)
 
+def get_post(post_uuid):
+    """
+    Return a post by UUID.
+    """
+    response = dynamodb_client.get_item(
+        TableName=TABLE_NAME,
+        Key={
+            'uuid': {'S': post_uuid}
+        }
+    )
+    
+    if not response or 'Item' not in response:
+        raise Exception('Could not find a post with UUID %s' % post_uuid)
+        
+    return response['Item']
+
+def increment_post_counter(post_uuid, was_correct):
+    """
+    Increment counters on a post.
+    """
+    dynamodb_client.update_item(
+        TableName=TABLE_NAME,
+        Key={
+            'uuid': {'S': post_uuid}
+        },
+        UpdateExpression=("ADD %s :inc" % ('correct_guesses' if was_correct else 'incorrect_guesses')),
+        ExpressionAttributeValues={
+            ":inc": {'N': "1"}
+        }
+    )
+    
+def increment_report_reason_count(post_uuid, reason):
+    """
+    Increment a report reason counter.
+    """
+    
+    # Suitable reason?
+    if reason not in REPORT_REASONS:
+        raise Error('Invalid report reason. Options are %s' % (','.join(REPORT_REASONS)))
+    
+    dynamodb_client.update_item(
+        TableName=TABLE_NAME,
+        Key={
+            'uuid': {'S': post_uuid}
+        },
+        UpdateExpression=("ADD %s :inc" % ('reports_' + reason)),
+        ExpressionAttributeValues={
+            ":inc": {'N': "1"}
+        }
+    )
+    
 def build_json_response(content, status=200):
     """
     Build and return a response object.
@@ -54,45 +111,118 @@ def build_json_response(content, status=200):
         }
     }
 
-def route_get_challenge():
+def route_post_report_challenge(event, context):
+    """
+    POST /challenge/{post_uuid}/report/{reason}
+    """
+    post_uuid = event['pathParameters']['post_uuid']
+    reason = event['pathParameters']['reason']
+    
+    # Update the post
+    increment_report_reason_count(post_uuid, reason)
+    return build_json_response({})
+    
+
+def route_get_challenge(event, context):
     """
     GET /challenge
+    Gets a new challenge.
     """
-    post = get_random_post()
+    
+    post_uuid = event['pathParameters']['post_uuid'] if event['pathParameters'] and event['pathParameters']['post_uuid'] else None
+    post = get_post(post_uuid) if post_uuid is not None else get_random_post()
+        
     stripped_post = {
         'uuid': post['uuid']['S'],
-        'crop_url': RESOURCE_CROPPED_ROOT_URL + post['crop']['S']
+        'crop': {
+            'url': RESOURCE_CROP_ROOT_URL + post['crop']['S'],
+            'width': int(post['crop_width']['N']),
+            'height': int(post['crop_height']['N'])
+        },
+        'orig': {
+            'aspect_ratio': round(float(post['orig_width']['N']) / float(post['orig_height']['N']), 2)
+        }
     }
     return build_json_response(stripped_post)
 
-def route_post_response():
+def route_post_challenge(event, context):
     """
-    POST /response
+    POST /challenge/{post_uuid}/{guess}
+    Checks the response to a challenge.
     """
-    post = get_random_post()
-    stripped_post = {
+    post_uuid = event['pathParameters']['post_uuid']
+    guess = event['pathParameters']['guess']
+    
+    # Valid guess?
+    if guess not in ['s', 'e']:
+        raise Exception('Challenge guesses must be either "s" or "e"')
+    
+    # Find the post with this UUID
+    post = get_post(post_uuid)
+    
+    # Correct?
+    correct = post['rating']['S'] == guess
+    
+    # Increment the appropriate counter
+    increment_post_counter(post_uuid, correct)
+    
+    result = {
         'uuid': post['uuid']['S'],
-        'crop_url': RESOURCE_CROPPED_ROOT_URL + post['crop']['S']
+        'source': {
+            'id': int(post['id']['N']),
+            'url': E621_POST_URL + str(post['id']['N']),
+            'fav_count': int(post['fav_count']['N']),
+            'score': int(post['score']['N'])
+        },
+        'result': {
+            'actual': post['rating']['S'],
+            'guess': guess
+        },
+        'orig': {
+            'url': RESOURCE_ORIG_ROOT_URL + post['orig']['S'],
+            'width': int(post['orig_width']['N']),
+            'height': int(post['orig_height']['N'])
+        },
+        'crop': {
+            'url': RESOURCE_CROP_ROOT_URL + post['crop']['S'],
+            'width': int(post['crop_width']['N']),
+            'height': int(post['crop_height']['N']),
+            'position': {
+                'left': int(post['crop_left']['N']),
+                'top': int(post['crop_top']['N'])
+            }
+        },
+        'statistics': {
+            'correct_guesses': int(post['correct_guesses']['N']),
+            'incorrect_guesses': int(post['incorrect_guesses']['N'])
+        }
     }
-    return build_json_response(stripped_post)
+    
+    return build_json_response(result)
 
 def lambda_handler(event, context):
     """
     Handle an HTTP request.
     """
     
-    print(event)
-
-    logger.info('%s %s' % (event['httpMethod'], (event['resource'])))
-
+    logger.info('%s %s' % (event['httpMethod'], (event['path'])))
+    
+    routes = {
+        'GET /challenge': route_get_challenge,
+        'GET /challenge/{post_uuid}': route_get_challenge,
+        'POST /challenge/{post_uuid}/{guess}': route_post_challenge,
+        'POST /challenge/{post_uuid}/report/{reason}': route_post_report_challenge
+    }
+    
+    # Route the request
+    resource_name = event['requestContext']['resourceId']
+    
     # Handle errors that occur during dispatch
     try:
 
         # Dispatch to the appropriate route
-        if (event['resource'] == '/challenge' and event['httpMethod'] == 'GET'):
-            return route_get_challenge()
-        elif (event['resource'] == '/response' and event['httpMethod'] == 'POST'):
-            return build_json_response(get_random_post())
+        if resource_name in routes:
+            return routes[resource_name](event, context)
         else:
             return build_json_response({
                 'error': 'uwu 404 not found sorry hehe'
@@ -100,6 +230,7 @@ def lambda_handler(event, context):
         
     except Exception as e: 
         return build_json_response({
+            'folf': 'sad :(',
             'error': str(e)
         }, 500)
 

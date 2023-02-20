@@ -5,22 +5,34 @@ import Game from './components/Game.vue'
 import { GameClient } from './client/game'
 import type { Challenge } from './client/model/challenge'
 import { preloadImage } from './client/image';
+
+
 </script>
 
 <script lang="ts">
 
 const challenges = ref<Challenge[]>([]);
-
 const backdropStyle = ref<CSSProperties>({});
+
+// Decide if we have a fragment to start a challenge immediately
+const hash = window.location.hash;
+const challengeDeeplinkUuid = hash.substring(hash.indexOf('#') + 1);
+
+if (challengeDeeplinkUuid.length >= 36) {
+    // We have a deeplinked challenge, go straight to it
+    console.log(`Going directly to deeplinked challenge ${challengeDeeplinkUuid}`);
+    await nextChallenge(challengeDeeplinkUuid);
+}
+
 
 /**
  * Preload a challenge.
  */
-async function preloadChallenge(): Promise<Challenge> {
+async function preloadChallenge(uuid?: string): Promise<Challenge> {
 
     console.log('Getting a challenge...');
-    const challenge = await GameClient.getChallenge();
-    
+    const challenge = await GameClient.getChallenge(uuid);
+
     // Preload the image
     console.log(`Preloading crop ${challenge.crop.url} for challenge ${challenge.uuid}...`);
     await preloadImage(challenge.crop.url);
@@ -31,10 +43,17 @@ async function preloadChallenge(): Promise<Challenge> {
 /**
  * Start a new challenge.
  */
-async function nextChallenge() {
+async function nextChallenge(uuid?: string) {
     
     // Load a new challenge
-    const newChallenge = await preloadChallenge();
+    let newChallenge: Challenge;
+
+    try {
+        newChallenge = await preloadChallenge(uuid);
+    } catch {
+        challenges.value.length = 0;
+        return;
+    }
 
     // Once it's loaded, swap to it
     if (challenges.value.length !== 0) {
@@ -42,10 +61,20 @@ async function nextChallenge() {
     }
 
     challenges.value.push(newChallenge);
+
+    // Update the URL
+    window.location.hash = '#' + newChallenge.uuid;
     
     // Update the backdrop to match
     backdropStyle.value.backgroundImage = `url('${newChallenge.crop.url}')`;
 
+}
+
+/**
+ * Return to the intro.
+ */
+async function backToIntro() {
+    challenges.value.length = 0;
 }
 
 </script>
@@ -79,8 +108,8 @@ async function nextChallenge() {
     position: relative;
     width: 100%;
     height: 100%;
-    opacity: 0.1;
-    filter: blur(10px);
+    opacity: 0.25;
+    filter: blur(20px);
 }
 
 </style>
@@ -88,7 +117,7 @@ async function nextChallenge() {
 <template>
     <header>
         <nav>
-            <div class="logo"></div>
+            <div class="logo" v-on:click="backToIntro"></div>
         </nav>
     </header>
     <main>

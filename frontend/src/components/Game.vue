@@ -5,6 +5,7 @@ import type { Challenge } from '@/client/model/challenge';
 import type { Answer } from '@/client/model/answer';
 import type { Rating } from '@/client/model/rating';
 import type { ReportReason } from '@/client/model/report-reason';
+import { Scoreboard } from '@/scoreboard';
 import { ref } from 'vue';
 import ArtPane from './ArtPane.vue'
 
@@ -29,6 +30,12 @@ async function makeGuess(guess: Rating) {
     console.log(`Preloading orig ${answerResponse.orig.url} before revealing...`);
     await preloadImage(answerResponse.orig.url);
     answer.value = answerResponse;
+
+    if (answerResponse.result.actual === guess) {
+        Scoreboard.win();
+    } else {
+        Scoreboard.lose();
+    }
 }
 
 /**
@@ -83,6 +90,9 @@ async function reportPostFor(reason: ReportReason) {
 
         .detail, strong {
             color: var(--ity-white);
+            &.streak {
+                font-size: 0.875rem;
+            }
         }
 
         &.correct {
@@ -140,6 +150,10 @@ async function reportPostFor(reason: ReportReason) {
                     {{ answer.result.actual !== answer.result.guess ? 'Nope, it was ' : 'Correct - it was ' }} 
                     {{ answer.result.actual === 'e' ? 'Yiff' : 'Safe' }}!
                 </span>
+                <p class="detail streak">
+                    <span v-if="Scoreboard.getStreak() !== 0">On a streak of <strong>{{ Scoreboard.getStreak() }}</strong>&nbsp;</span>
+                    <span v-if="Scoreboard.getBestStreak()">&nbsp;Best streak so far: <strong>{{ Scoreboard.getBestStreak() }}</strong></span>
+                </p>
                 <p class="detail">
                     <span v-if="answer.statistics.correct_guesses + answer.statistics.incorrect_guesses === 0">
                         You're the first to guess this image!

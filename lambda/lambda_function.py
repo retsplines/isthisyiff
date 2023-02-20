@@ -140,9 +140,6 @@ def route_get_challenge(event, context):
             'url': RESOURCE_CROP_ROOT_URL + post['crop']['S'],
             'width': int(post['crop_width']['N']),
             'height': int(post['crop_height']['N'])
-        },
-        'orig': {
-            'aspect_ratio': round(float(post['orig_width']['N']) / float(post['orig_height']['N']), 2)
         }
     }
     return build_json_response(stripped_post)

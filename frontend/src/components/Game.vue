@@ -58,7 +58,7 @@ async function makeGuess(guess: Rating) {
         padding: 0.5rem 0;
         color: var(--ity-white);
 
-        @media (min-width: 600px) {
+        @media (min-width: 501px) {
             border-radius: 10px;
         }
 

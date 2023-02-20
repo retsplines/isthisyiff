@@ -6,8 +6,5 @@ import type { Rating } from "./rating"
  */
 export type Challenge = {
     uuid: string,
-    crop: ImageRef,
-    orig: {
-        aspect_ratio: number
-    }
+    crop: ImageRef
 };

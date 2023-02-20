@@ -9,8 +9,7 @@ const props = defineProps<{
 }>();
 
 const artboxStyle = ref<CSSProperties>({
-    backgroundImage: `url('${props.challenge.crop.url}')`,
-    // aspectRatio: `1 / ${props.challenge.orig.aspect_ratio}`,
+    backgroundImage: `url('${props.challenge.crop.url}')`
 });
 
 // When an answer is set, fade it in

@@ -66,6 +66,7 @@ async function reportPostFor(reason: ReportReason) {
     margin-top: 2rem;
     button {
         margin: 10px;
+        border-radius: 8px;
     }
 }
 
@@ -97,7 +98,7 @@ async function reportPostFor(reason: ReportReason) {
 
         &.correct {
             background-color: $correct;
-            border-bottom: 5px solid darken($correct, 10);
+            border-bottom: 5px solid darken($correct, 15);
 
             &:hover {
                 border-bottom: 5px solid darken($correct, 5);
@@ -106,7 +107,7 @@ async function reportPostFor(reason: ReportReason) {
         }
         &.incorrect {
             background-color: $incorrect;
-            border-bottom: 5px solid darken($incorrect, 10);
+            border-bottom: 5px solid darken($incorrect, 15);
             &:hover {
                 border-bottom: 5px solid darken($incorrect, 5);
                 background-color: lighten($incorrect, 5);

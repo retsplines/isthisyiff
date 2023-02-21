@@ -141,7 +141,7 @@ async function backToIntro() {
 
     </main>
     <footer>
-        made with love by <a href="http://github.com/retsplines" target="_blank">@retsplines</a>
+        made with love by <a href="https://github.com/retsplines/isthisyiff" target="_blank">@retsplines</a>
     </footer>
 </template>
 

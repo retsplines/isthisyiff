@@ -214,8 +214,8 @@ def route_post_challenge(event, context):
             }
         },
         'statistics': {
-            'correct_guesses': int(post['correct_guesses']['N']),
-            'incorrect_guesses': int(post['incorrect_guesses']['N'])
+            'correct_guesses': int(post['correct_guesses']['N']) + (1 if correct else 0),
+            'incorrect_guesses': int(post['incorrect_guesses']['N']) + (0 if correct else 1)
         }
     }
     

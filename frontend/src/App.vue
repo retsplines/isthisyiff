@@ -63,7 +63,9 @@ async function nextChallenge(uuid?: string) {
     challenges.value.push(newChallenge);
 
     // Update the URL
-    window.location.hash = '#' + newChallenge.uuid;
+    history.replaceState({
+        challenge: newChallenge.uuid
+    }, "", "/challenge/" + newChallenge.uuid);
     
     // Update the backdrop to match
     backdropStyle.value.backgroundImage = `url('${newChallenge.crop.url}')`;

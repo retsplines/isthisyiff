@@ -33,9 +33,14 @@ async function preloadChallenge(uuid?: string): Promise<Challenge> {
     console.log('Getting a challenge...');
     const challenge = await GameClient.getChallenge(uuid);
 
-    // Preload the image
-    console.log(`Preloading crop ${challenge.crop.url} for challenge ${challenge.uuid}...`);
-    await preloadImage(challenge.crop.url);
+    try {
+        // Preload the image
+        console.log(`Preloading crop ${challenge.crop.url} for challenge ${challenge.uuid}...`);
+        await preloadImage(challenge.crop.url);
+        console.log(`Preloading of crop ${challenge.crop.url} complete`);
+    } catch (preloadError) {
+        console.warn(`Error preloading crop`, preloadError);
+    }
 
     return challenge;
 }

@@ -15,7 +15,9 @@ const props = defineProps<{
     challenge: Challenge
 }>()
 
+const guessMade = ref<boolean>(false);
 const answer = ref<Answer|null>(null);
+const missingImage = ref<boolean>(false);
 const reportingState = ref<'closed'|'choosing'|'sending'|'thanks'>('closed');
 
 /**
@@ -24,11 +26,22 @@ const reportingState = ref<'closed'|'choosing'|'sending'|'thanks'>('closed');
  * @param guess
  */
 async function makeGuess(guess: Rating) {
+
+    guessMade.value = true;
     const answerResponse = await GameClient.submitAnswer(props.challenge.uuid, guess);
 
     // Preload the image before revealling the answer
     console.log(`Preloading orig ${answerResponse.orig.url} before revealing...`);
-    await preloadImage(answerResponse.orig.url);
+
+    try {
+        await preloadImage(answerResponse.orig.url);
+        console.log(`Preloading of orig ${answerResponse.orig.url} complete`);
+    } catch (preloadError) {
+        // Stomp over the image with a generic "not found" placeholder.
+        console.warn(`Error preloading orig`, preloadError);
+        missingImage.value = true;
+    }
+    
     answer.value = answerResponse;
 
     if (answerResponse.result.actual === guess) {
@@ -60,6 +73,13 @@ async function reportPostFor(reason: ReportReason) {
     width: 100%;
     margin: auto;
     text-align: center;
+}
+
+.missing {
+    h3 {
+        font-size: 2rem;
+        font-weight: bold;
+    }
 }
 
 .controls {
@@ -137,16 +157,23 @@ async function reportPostFor(reason: ReportReason) {
     
     <div class="game">
 
-        <ArtPane ref="art" :challenge="challenge" :answer="answer"></ArtPane>
+        <ArtPane v-if="!missingImage" ref="art" :challenge="challenge" :answer="answer"></ArtPane>
         
+        <div class="missing" v-if="missingImage">
+            <h3>ruh-roh</h3>
+            <p>
+                This image is missing, sorry about that.
+            </p>
+        </div>
+
         <div class="controls" v-if="!answer">
-            <button class="button is-danger is-large" v-on:click="makeGuess('e')">YIFF</button>
-            <button class="button is-success is-large" v-on:click="makeGuess('s')">Safe</button>
+            <button v-bind:disabled="guessMade" class="button is-danger is-large" v-on:click="makeGuess('e')">YIFF</button>
+            <button v-bind::disabled="guessMade" class="button is-success is-large" v-on:click="makeGuess('s')">Safe</button>
         </div>
 
         <div class="result" v-if="answer">
             
-            <div class="answer" v-on:click="emit('nextGamePlease')" :class="answer.result.actual !== answer.result.guess ? 'incorrect' : 'correct'">
+            <div class="answer" v-on:click.once="emit('nextGamePlease')" :class="answer.result.actual !== answer.result.guess ? 'incorrect' : 'correct'">
                 <span class="headline">
                     {{ answer.result.actual !== answer.result.guess ? 'Nope, it was ' : 'Correct - it was ' }} 
                     {{ answer.result.actual === 'e' ? 'Yiff' : 'Safe' }}!

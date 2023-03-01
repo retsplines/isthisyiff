@@ -38,7 +38,7 @@ function goToPost() {
     height: 47.5vh;
     max-width: 100%;
     margin: auto;
-    filter: drop-shadow(0 0 4px rgba(0,0,0,0.2));
+    filter: drop-shadow(0 0 4px rgba(0,0,0,0.4));
 
     &.has-answer {
         cursor: pointer;

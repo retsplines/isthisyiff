@@ -1,15 +1,13 @@
-$white: #ffffff;
-$correct: #48c78e;
-$incorrect: #f03a5f;
+@import "variables";
 
 :root {
-    --ity-white: #fff;
-    --ity-white-pure: #fff;
-    --ity-black: #181818;
-    --ity-black-pure: #000;
-    --ity-grey: #4f4f4f;
-    --ity-correct: $correct;
-    --ity-incorrect: $incorrect;
+    --ity-white: #{$white};
+    --ity-white-pure: #{$white};
+    --ity-black: #{$black};
+    --ity-black-pure: #{$black-pure};
+    --ity-grey: #868686;
+    --ity-correct: #{$correct};
+    --ity-incorrect: #{$incorrect};
     --ity-nav-height: 50px;
     --ity-border-radius: 20px;
 }

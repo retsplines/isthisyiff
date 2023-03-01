@@ -1,3 +1,5 @@
+@import "variables";
+
 #app {
     display: flex;
     flex-direction: column;
@@ -7,9 +9,10 @@
 
 header {
     background-color: var(--color-background);
+    box-shadow: rgb(0 0 0 / 50%) 0 0px 10px;
     z-index: 20;
     nav {
-        border-bottom: 1px solid var(--ity-grey);
+        border-bottom: 1px solid rgba($white, 15%);
         height: var(--ity-nav-height);
         display: flex;
         align-items: center;
@@ -34,13 +37,14 @@ main {
 
 footer {
     z-index: 20;
+    box-shadow: rgb(0 0 0 / 50%) 0 0px 10px;
     background-color: var(--color-background);
     margin-top: auto !important;
-    border-top: 1px solid var(--ity-grey);
+    border-top: 1px solid rgba($white, 15%);
     height: var(--ity-nav-height);
     line-height: var(--ity-nav-height);
     text-align: center;
     flex-shrink: 0;
     font-family: 'Monaco', 'Consolas', 'Courier New', Courier, monospace;
-
+    font-size: 0.8rem;
 }

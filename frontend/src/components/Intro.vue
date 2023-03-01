@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 
+const accepted = ref<boolean>(false);
 const emit = defineEmits(['didAcceptIntro'])
 
 </script>
@@ -43,10 +45,10 @@ const emit = defineEmits(['didAcceptIntro'])
         <p>
             
             <div class="buttons">
-                <button class="button" v-on:click="emit('didAcceptIntro')">
+                <button class="button" v-bind:disabled="accepted" v-on:click="emit('didAcceptIntro'); accepted = true;">
                     I'm 18+
                 </button>
-                <a class="button" href="https://e926.net/">
+                <a class="button" v-if="!accepted" href="https://e926.net/">
                     Nope
                 </a>
             </div>

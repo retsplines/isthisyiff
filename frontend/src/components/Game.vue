@@ -168,7 +168,7 @@ async function reportPostFor(reason: ReportReason) {
 
         <div class="controls" v-if="!answer">
             <button v-bind:disabled="guessMade" class="button is-danger is-large" v-on:click="makeGuess('e')">YIFF</button>
-            <button v-bind::disabled="guessMade" class="button is-success is-large" v-on:click="makeGuess('s')">Safe</button>
+            <button v-bind:disabled="guessMade" class="button is-success is-large" v-on:click="makeGuess('s')">Safe</button>
         </div>
 
         <div class="result" v-if="answer">

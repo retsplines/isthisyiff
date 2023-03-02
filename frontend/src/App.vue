@@ -5,8 +5,6 @@ import Game from './components/Game.vue'
 import { GameClient } from './client/game'
 import type { Challenge } from './client/model/challenge'
 import { preloadImage } from './client/image';
-
-
 </script>
 
 <script lang="ts">
@@ -14,16 +12,51 @@ import { preloadImage } from './client/image';
 const challenges = ref<Challenge[]>([]);
 const backdropStyle = ref<CSSProperties>({});
 
+// A queued challenge UUID
+let queuedChallengeUuid: string|undefined = undefined;
+
 // Decide if we have a fragment to start a challenge immediately
 const hash = window.location.hash;
 const challengeDeeplinkUuid = hash.substring(hash.indexOf('#') + 1);
 
 if (challengeDeeplinkUuid.length >= 36) {
     // We have a deeplinked challenge, go straight to it
-    console.log(`Going directly to deeplinked challenge ${challengeDeeplinkUuid}`);
-    nextChallenge(challengeDeeplinkUuid);
+    console.log(`Got deeplinked challenge ${challengeDeeplinkUuid}`);
+
+    // Has the user already passed the age check?
+    if (hasPassedAgeCheck()) {
+        // Start the challenge immediately
+        console.log('Age check already passed, starting it immediately...');
+        nextChallenge(challengeDeeplinkUuid);
+    } else {
+        console.log('Waiting for age check...');
+        queuedChallengeUuid = challengeDeeplinkUuid;
+    }
 }
 
+/**
+ * Check whether the user has passed the age check.
+ */
+function hasPassedAgeCheck() {
+    return document.cookie.indexOf('passed-age-check=1') === 0;
+}
+
+/**
+ * Mark the user as having passed the age check.
+ */
+function passAgeCheck() {
+    console.log('Age check passed');
+    document.cookie = 'passed-age-check=1';
+}
+
+/**
+ * The user accepted the intro.
+ */
+function acceptIntro() {
+    passAgeCheck();
+    nextChallenge(queuedChallengeUuid);
+    queuedChallengeUuid = undefined;
+}
 
 /**
  * Preload a challenge.
@@ -56,6 +89,7 @@ async function nextChallenge(uuid?: string) {
     try {
         newChallenge = await preloadChallenge(uuid);
     } catch {
+        // Return to the intro
         challenges.value.length = 0;
         return;
     }
@@ -137,7 +171,7 @@ async function backToIntro() {
         <TransitionGroup>
 
             <!-- Show the intro if there are no challenges yet -->
-            <Intro v-if="challenges.length === 0" @did-accept-intro="nextChallenge" :key="'intro-text'" class="slide"></Intro>
+            <Intro v-if="challenges.length === 0" @did-accept-intro="acceptIntro" :key="'intro-text'" class="slide"></Intro>
 
             <!-- Show the challenge from the list otherwise-->
             <Game v-for="challenge in challenges" :challenge="challenge" :key="challenge.uuid" v-on:next-game-please="nextChallenge" class="slide"></Game>

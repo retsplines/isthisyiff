@@ -159,20 +159,22 @@ async function reportPostFor(reason: ReportReason) {
 
         <ArtPane v-if="!missingImage" ref="art" :challenge="challenge" :answer="answer"></ArtPane>
         
+        <!-- Missing image? -->
         <div class="missing" v-if="missingImage">
             <h3>ruh-roh</h3>
-            <p>
-                This image is missing, sorry about that.
-            </p>
+            <p>This image is missing, sorry about that.</p>
         </div>
 
+        <!-- Game controls (yiff/safe buttons) -->
         <div class="controls" v-if="!answer">
             <button v-bind:disabled="guessMade" class="button is-danger is-large" v-on:click="makeGuess('e')">YIFF</button>
             <button v-bind:disabled="guessMade" class="button is-success is-large" v-on:click="makeGuess('s')">Safe</button>
         </div>
 
+        <!-- The results -->
         <div class="result" v-if="answer">
-            
+
+            <!-- Box with text explaining the result & some stats -->
             <div class="answer" v-on:click.once="emit('nextGamePlease')" :class="answer.result.actual !== answer.result.guess ? 'incorrect' : 'correct'">
                 <span class="headline">
                     {{ answer.result.actual !== answer.result.guess ? 'Nope, it was ' : 'Correct - it was ' }} 
@@ -194,7 +196,8 @@ async function reportPostFor(reason: ReportReason) {
                     <strong> Play again? </strong>
                 </p>
             </div>
-            
+
+            <!-- Text underneath the box with link & report options -->
             <div class="result-controls">
                 <a :href="answer.source.url" target="_blank">See it on e621</a> &nbsp; | &nbsp;
                 <a v-if="reportingState === 'closed'" v-on:click="reportingState = 'choosing'">Report Post</a>
@@ -213,5 +216,4 @@ async function reportPostFor(reason: ReportReason) {
         </div>
 
     </div>
-
 </template>

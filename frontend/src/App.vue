@@ -46,7 +46,7 @@ function hasPassedAgeCheck() {
  */
 function passAgeCheck() {
     console.log('Age check passed');
-    document.cookie = 'passed-age-check=1';
+    document.cookie = 'passed-age-check=1; max-age=31536000; path=/';
 }
 
 /**
@@ -116,7 +116,7 @@ async function nextChallenge(uuid?: string) {
  */
 async function backToIntro() {
     challenges.value.length = 0;
-    window.location.hash = '';
+    history.replaceState({}, "", "/");
     backdropStyle.value.backgroundImage = 'none';
 }
 
@@ -145,7 +145,7 @@ async function backToIntro() {
 }
 
 .backdrop {
-    transition: all 1s ease;
+    transition: all 0.4s ease;
     background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;

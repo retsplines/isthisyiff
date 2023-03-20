@@ -1,5 +1,6 @@
 import type { Answer } from "./model/answer";
 import type { Challenge } from "./model/challenge";
+import type { Previews } from "./model/preview";
 import type { Rating } from "./model/rating";
 import type { ReportReason } from "./model/report-reason";
 
@@ -46,6 +47,31 @@ export class GameClient {
             throw Error('Failed to report the post');
         }
         return;
+    }
+
+    /**
+     * Get a number of previews, which are just crop images for stylistic use.
+     * 
+     * @param upto The number of previews to retrieve. We may not always deliver as many as requested.
+     * @param startFrom Optionally, resume scanning from a UUID to avoid duplicates.
+     */
+    public static async getPreviews(upto: number, startFrom: string|null = null): Promise<Previews> {
+        
+        const params: Record<string, string> = {
+            upto: upto.toString(10),
+        };
+
+        if (startFrom !== null) {
+            params['start_from'] = startFrom;
+        }
+
+        const response = await fetch(
+            `${import.meta.env.VITE_ITY_BACKEND_URI}preview?` + new URLSearchParams(params)
+        );
+        if (response.status !== 200) {
+            throw Error('Failed to load the preview set');
+        }
+        return await response.json() as Previews;
     }
 
 }

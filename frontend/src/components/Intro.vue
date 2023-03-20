@@ -17,15 +17,22 @@ const emit = defineEmits(['didAcceptIntro'])
 
 .intro {
 
+
     p {
         margin-top: 1.5rem;
         font-size: 1.1rem;
+        text-shadow: 0px 0px 8px var(--color-background);
+
         &:first-child {
             font-size: 1.8rem;
             a {
                 color: inherit;
             }
         }
+    }
+
+    .buttons {
+        margin-top: 2rem;
     }
 
 }
@@ -42,17 +49,15 @@ const emit = defineEmits(['didAcceptIntro'])
         <p>
             Try to guess whether an image is yiff or not just based on a face-crop. Ready to play? You must be 18+ to continue.
         </p>
-        <p>
             
-            <div class="buttons">
-                <button class="button" v-bind:disabled="accepted" v-on:click="emit('didAcceptIntro'); accepted = true;">
-                    I'm 18+
-                </button>
-                <a class="button" v-if="!accepted" href="https://e926.net/">
-                    Nope
-                </a>
-            </div>
+        <div class="buttons">
+            <button class="button" v-bind:disabled="accepted" v-on:click="emit('didAcceptIntro'); accepted = true;">
+                I'm 18+
+            </button>
+            <a class="button" v-if="!accepted" href="https://e926.net/">
+                Nope
+            </a>
+        </div>
 
-        </p>
     </div>   
 </template>

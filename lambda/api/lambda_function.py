@@ -40,11 +40,32 @@ E621_ORIGINALS_URL = 'https://static1.e621.net/data/'
 # Define the SNS topic for reports
 REPORTS_SNS_ARN = os.environ.get('REPORTS_SNS_ARN', None)
 
+# Define the maximum number of previews that can be requested in one batch
+MAX_PREVIEWS = 250
+
 # Creating the DynamoDB Client
 dynamodb_client = boto3.client('dynamodb', region_name="eu-west-1")
 
 # Create an SNS client
 sns_client = boto3.client('sns')
+
+def get_query_string_param(event, param, default=None):
+    """
+    Get a query string parameter safely.
+    """
+    if 'queryStringParameters' not in event or event['queryStringParameters'] is None:
+        return default
+    
+    if param not in event['queryStringParameters']:
+        return default
+        
+    return event['queryStringParameters'][param]
+
+def get_path_param(event, param, default=None):
+    """
+    Get a path parameter safely.
+    """
+    return event['pathParameters'][param] if event['pathParameters'] and event['pathParameters'][param] else default
 
 # Generate an original URL
 def get_orig_url(post):
@@ -100,6 +121,30 @@ def get_post(post_uuid):
         raise Exception('Could not find a post with UUID %s' % post_uuid)
         
     return response['Item']
+
+def get_previews(upto=1, start_from=None, attempts=5):
+    """
+    Get a number of previews, starting optionally starting from a given UUID
+    """
+    if start_from is None:
+        start_from = str(uuid.uuid4())
+
+    for attempt in range(attempts):
+        try:
+            response = dynamodb_client.scan(
+                TableName=TABLE_NAME,
+                Limit=upto,
+                ExclusiveStartKey={
+                    'uuid': {'S': start_from}
+                }
+            )
+            return response['Items']
+        except Exception as e:
+            logging.warn('get_previews() attempt %d failed: %s' % (attempt, e))
+            # Also, now use a random UUID instead of the original start_from
+            start_from = str(uuid.uuid4())
+    
+    raise Exception('Failed to scan for previews starting with %s upto %d' % (start_from, upto))
 
 def increment_post_counter(post_uuid, was_correct):
     """
@@ -184,7 +229,7 @@ def route_get_challenge(event, context):
     Gets a new challenge.
     """
     
-    post_uuid = event['pathParameters']['post_uuid'] if event['pathParameters'] and event['pathParameters']['post_uuid'] else None
+    post_uuid = get_path_param(event, 'post_uuid')
     post = get_post(post_uuid) if post_uuid is not None else get_random_post()
         
     stripped_post = {
@@ -196,6 +241,34 @@ def route_get_challenge(event, context):
         }
     }
     return build_json_response(stripped_post)
+    
+def route_get_previews(event, context):
+    """
+    GET /preview
+    Gets a number of preview crops.
+    """
+    
+    start_from = get_query_string_param(event, 'from')
+    upto = int(get_query_string_param(event, 'upto', 1))
+    
+    # Restrict the number of previews that can be requested
+    if upto > MAX_PREVIEWS:
+        upto = MAX_PREVIEWS
+
+    # Get previews
+    preview_list = get_previews(upto, start_from)
+    previews = {
+        'previews': list(map(lambda preview: {
+            'crop': {
+                'url': RESOURCE_CROP_ROOT_URL + preview['crop']['S'],
+                'width': int(preview['crop_width']['N']),
+                'height': int(preview['crop_height']['N'])
+            },
+            'uuid': str(preview['uuid']['S'])
+        }, preview_list))
+    }
+
+    return build_json_response(previews)
 
 def route_post_challenge(event, context):
     """
@@ -258,8 +331,10 @@ def lambda_handler(event, context):
     """
     
     logger.info('%s %s' % (event['httpMethod'], (event['path'])))
+    print(event)
     
     routes = {
+        'GET /preview': route_get_previews,
         'GET /challenge': route_get_challenge,
         'GET /challenge/{post_uuid}': route_get_challenge,
         'POST /challenge/{post_uuid}/{guess}': route_post_challenge,

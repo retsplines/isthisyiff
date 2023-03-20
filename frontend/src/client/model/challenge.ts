@@ -1,5 +1,4 @@
 import type { ImageRef } from "./image-ref"
-import type { Rating } from "./rating"
 
 /**
  * The shape of a "challenge" API response.

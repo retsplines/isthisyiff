@@ -2,6 +2,7 @@
 import { type CSSProperties, ref } from 'vue';
 import Intro from './components/Intro.vue'
 import Game from './components/Game.vue'
+import Collage from './components/collage/Collage.vue';
 import { GameClient } from './client/game'
 import type { Challenge } from './client/model/challenge'
 import { preloadImage } from './client/image';
@@ -11,6 +12,9 @@ import { preloadImage } from './client/image';
 
 const challenges = ref<Challenge[]>([]);
 const backdropStyle = ref<CSSProperties>({});
+
+// Should main content be displayed, or the nice slideshow?
+const slideshowMode = ref<boolean>(false);
 
 // A queued challenge UUID
 let queuedChallengeUuid: string|undefined = undefined;
@@ -82,7 +86,7 @@ async function preloadChallenge(uuid?: string): Promise<Challenge> {
  * Start a new challenge.
  */
 async function nextChallenge(uuid?: string) {
-    
+
     // Load a new challenge
     let newChallenge: Challenge;
 
@@ -98,6 +102,9 @@ async function nextChallenge(uuid?: string) {
     if (challenges.value.length !== 0) {
         challenges.value.length = 0;
     }
+    
+    // Stop displaying slideshow
+    slideshowMode.value = false;
 
     challenges.value.push(newChallenge);
 
@@ -114,10 +121,24 @@ async function nextChallenge(uuid?: string) {
 /**
  * Return to the intro.
  */
-async function backToIntro() {
+function backToIntro() {
     challenges.value.length = 0;
     history.replaceState({}, "", "/");
     backdropStyle.value.backgroundImage = 'none';
+}
+
+/**
+ * Toggle the slideshow, if there's nothing else going on
+ */
+function toggleSlideshow() {
+
+    // Only allowed if they've passed age verification
+    if (!hasPassedAgeCheck()) {
+        return;
+    }
+
+    backToIntro();
+    slideshowMode.value = !slideshowMode.value;
 }
 
 </script>
@@ -144,6 +165,10 @@ async function backToIntro() {
     position: fixed;
 }
 
+footer {
+    user-select: none;
+}
+
 .backdrop {
     transition: all 0.4s ease;
     background-size: cover;
@@ -152,23 +177,30 @@ async function backToIntro() {
     position: relative;
     width: 100%;
     height: 100%;
-    opacity: 0.25;
-    filter: blur(20px);
+
+    &.blurred {
+        opacity: 0.30;
+        filter: blur(10px);
+    }
 }
+
 
 </style>
 
 <template>
+
     <header>
         <nav>
-            <div class="logo" v-on:click="backToIntro"></div>
+            <div class="logo" v-on:click="toggleSlideshow"></div>
         </nav>
     </header>
     <main>
 
-        <div class="backdrop" v-bind:style="backdropStyle"></div>
+        <div class="backdrop" :class="{'blurred': !slideshowMode}" v-bind:style="backdropStyle">
+            <Collage v-if="challenges.length == 0" :interactive="slideshowMode" v-on:next-game-please="nextChallenge"></Collage>
+        </div>
 
-        <TransitionGroup>
+        <TransitionGroup v-if="!slideshowMode">
 
             <!-- Show the intro if there are no challenges yet -->
             <Intro v-if="challenges.length === 0" @did-accept-intro="acceptIntro" :key="'intro-text'" class="slide"></Intro>
@@ -179,8 +211,10 @@ async function backToIntro() {
         </TransitionGroup>
 
     </main>
-    <footer>
+
+    <footer v-on:click="toggleSlideshow">
         made with love by <a href="https://github.com/retsplines/isthisyiff" target="_blank">@retsplines</a>
     </footer>
+
 </template>
 

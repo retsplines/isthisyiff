@@ -137,8 +137,11 @@ function toggleSlideshow() {
         return;
     }
 
-    backToIntro();
-    slideshowMode.value = !slideshowMode.value;
+    if (challenges.value.length > 0) {
+        backToIntro();
+    } else {
+        slideshowMode.value = !slideshowMode.value;
+    }
 }
 
 </script>

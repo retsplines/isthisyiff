@@ -36,6 +36,20 @@ export function subtract(a: Vector, b: Vector): Vector {
 }
 
 /**
+ * Divides two vectors.
+ * 
+ * @param a 
+ * @param b 
+ */
+export function divide(a: Vector, b: Vector): Vector {
+    // If the divisor is 0 in either dimension, the result is 0 in that dimension
+    return {
+        x: b.x === 0 ? 0 : (a.x / b.x),
+        y: b.y === 0 ? 0 : (a.y / b.y)
+    };
+}
+
+/**
  * Multiplies two vectors.
  * 
  * @param a 
@@ -68,5 +82,29 @@ export function vectorOf(a: number = 0, b: number|null = null) {
     return {
         x: a,
         y: (b !== null ? b : a)
+    };
+}
+
+/**
+ * Returns the magnitude of a vector.
+ * 
+ * @param a 
+ * @returns 
+ */
+export function magnitude(a: Vector): number {
+    return Math.sqrt(a.x * a.x + a.y * a.y);
+}
+
+/**
+ * Return a vector that is a function (f) of another vector (a).
+ * 
+ * @param a 
+ * @param f 
+ * @returns 
+ */
+export function functionOf(a: Vector, f: (d: number, v?: Vector) => number): Vector {
+    return {
+        x: f(a.x, a),
+        y: f(a.y, a)
     };
 }

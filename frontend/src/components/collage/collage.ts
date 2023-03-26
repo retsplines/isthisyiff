@@ -1,5 +1,5 @@
 import { Subject } from 'rxjs';
-import { add, multiply, oppositeAxis, vectorOf } from './helpers';
+import { add, multiply, oppositeAxis, functionOf, vectorOf } from './helpers';
 import { BlockContentState, type Axis, type Block, type BlockLifecycleChangeEvent, type Point, type PresentationBlock, type Side, type Size } from './types';
 
 /**
@@ -105,7 +105,7 @@ export class Collage<Metadata=void> {
         }
         
         // Introduce any required rows or columns - the initial loadout doesn't factor-in preloading
-        while((this.introduce()).length > 0) ;
+        this.introduce();
 
         // Emit lifecycle changes for the initial blocks
         this.blockLifecycleChanges.next({
@@ -117,16 +117,18 @@ export class Collage<Metadata=void> {
     /**
      * Shift the viewport origin by an amount.
      */
-    public shiftOrigin(size: Size) {
-        this.setOrigin(add(this.origin, size));
+    public shiftOrigin(size: Size, inhibitBoundsCheck = false) {
+        this.setOrigin(add(this.origin, size), inhibitBoundsCheck);
     }
 
     /**
      * Set the viewport origin to a position.
      */
-    public setOrigin(position: Point) {
+    public setOrigin(position: Point, inhibitBoundsCheck = false) {
         this.origin = position;
-        this.checkBounds();
+        if (!inhibitBoundsCheck) {
+            this.checkBounds();
+        }
     }
 
     /**
@@ -134,6 +136,17 @@ export class Collage<Metadata=void> {
      */
     public getOrigin(): Point {
         return this.origin;
+    }
+
+
+    /**
+     * Get the current origin of the top-left corner of the grid relative to the canvas.
+     */
+    public getBlockOrigin(): Point {
+        return {
+            x: (this.origin.x + (this.blockOrigin.x * this.blockSize)),
+            y: (this.origin.y + (this.blockOrigin.y * this.blockSize)) 
+        };
     }
 
     /**
@@ -146,9 +159,11 @@ export class Collage<Metadata=void> {
     /**
      * Change the block size.
      */
-    public setBlockSize(size: number) {
+    public setBlockSize(size: number, inhibitBoundsCheck = false) {
         this.blockSize = size;
-        this.checkBounds();
+        if (!inhibitBoundsCheck) {
+            this.checkBounds();
+        }
     }
 
     /**
@@ -159,13 +174,30 @@ export class Collage<Metadata=void> {
     }
 
     /**
+     * Return the current viewport size in pixels.
+     */
+    public getViewportSize(): Size {
+        return this.viewportSize;
+    }
+
+    /**
+     * Return the inner collage size in pixels.
+     */
+    public getCollageSize(): Size {
+        return multiply(this.blockCounts, vectorOf(this.blockSize));
+    }
+
+    /**
      * Get blocks ready for presentation in the current viewport.
      */
     public present(): PresentationBlock<Metadata>[] {
         return this.blocks.map(block => {
 
             // Calculate the pixel position
-            const pixelPosition: Point = add(multiply(block.position, vectorOf(this.blockSize)), this.origin);
+            const pixelPosition: Point = add(
+                multiply(block.position, vectorOf(this.blockSize)),
+                this.origin
+            );
             
             // Is the block on-screen now?
             const isOnScreen = ! (pixelPosition.x + this.blockSize < 0 || 
@@ -205,26 +237,29 @@ export class Collage<Metadata=void> {
      * Check if any blocks need to be added or removed.
      */
     private checkBounds() {
-        
-        // Introduce new blocks where required.
-        // We re-call it if any were introduced, because the the viewport could have changed so much since the last
-        // check that more than one row or column needs to be added to cover it.
-        const allNewBlocks: Block<Metadata>[] = [];
-        let newBlocks: Block<Metadata>[] = [];
-        while((newBlocks = this.introduce()).length > 0) {
-            allNewBlocks.push(...newBlocks);
+
+        // Add any new rows/columns
+        let addedBlocks: Block<Metadata>[] = this.introduce();
+
+        // Remove any old rows/columns
+        let removedBlocks: Block<Metadata>[] = this.remove();
+
+        // If any blocks were added then immediately removed, don't announce them at all
+        const addedThenRemoved = addedBlocks.filter(Set.prototype.has, new Set(removedBlocks));
+        if (addedThenRemoved.length > 0) {
+            addedBlocks = addedBlocks.filter(addedBlock => !addedThenRemoved.includes(addedBlock));
+            removedBlocks = removedBlocks.filter(removedBlock => !addedThenRemoved.includes(removedBlock));
         }
 
         // Emit these new blocks for processing
-        if (allNewBlocks.length > 0) {
+        if (addedBlocks.length > 0) {
             this.blockLifecycleChanges.next({
-                blocks: allNewBlocks,
+                blocks: addedBlocks,
                 newState: BlockContentState.New
             });
         }
 
-        // remove any old rows/columns
-        const removedBlocks = this.remove();
+        // Emit removed blocks for processing
         if (removedBlocks.length > 0) {
             this.blockLifecycleChanges.next({
                 blocks: removedBlocks,
@@ -234,43 +269,52 @@ export class Collage<Metadata=void> {
     }
 
     /**
-     * Add rows or columns of blocks where needed.
+     * Add any rows or columns of blocks where needed.
      * Returns any added blocks for post-processing.
      */
     private introduce(): Block<Metadata>[] {
-        
-        // Calculate the current origin of the grid relative to the canvas
-        const gridPixelOrigin: Point = {
-            x: (this.origin.x + (this.blockOrigin.x * this.blockSize)),
-            y: (this.origin.y + (this.blockOrigin.y * this.blockSize)) 
-        };
-        
-        // Calculate the size of the grid
-        const gridSize: Size = multiply(this.blockCounts, vectorOf(this.blockSize));
 
         // Collect removed blocks
         const introducedBlocks: Block<Metadata>[] = [];
 
-        // New columns needed right?
-        if (gridPixelOrigin.x + gridSize.x < (this.viewportSize.x + this.preloadDistance)) {
-            introducedBlocks.push(...this.extend('x', 'end'));
-        }
+        // Re-perform the process until no more blocks need to be added
+        let lastCycleIntroducedCount = 0;
         
-        // New columns needed left?
-        if (gridPixelOrigin.x > -this.preloadDistance) {
-            introducedBlocks.push(...this.extend('x', 'start'));
-        }
+        do {
+
+            lastCycleIntroducedCount = introducedBlocks.length;
+            
+            // Calculate the current origin of the grid relative to the canvas
+            const gridPixelOrigin: Point = {
+                x: (this.origin.x + (this.blockOrigin.x * this.blockSize)),
+                y: (this.origin.y + (this.blockOrigin.y * this.blockSize)) 
+            };
+            
+            // Calculate the size of the grid
+            const gridSize: Size = multiply(this.blockCounts, vectorOf(this.blockSize));
+
+            // New columns needed right?
+            if (gridPixelOrigin.x + gridSize.x < (this.viewportSize.x + this.preloadDistance)) {
+                introducedBlocks.push(...this.extend('x', 'end'));
+            }
+            
+            // New columns needed left?
+            if (gridPixelOrigin.x > -this.preloadDistance) {
+                introducedBlocks.push(...this.extend('x', 'start'));
+            }
+            
+            // New rows needed bottom?
+            if (gridPixelOrigin.y + gridSize.y < (this.viewportSize.y + this.preloadDistance)) {
+                introducedBlocks.push(...this.extend('y', 'end'));
+            }
+
+            // New rows needed top?
+            if (gridPixelOrigin.y > -this.preloadDistance) {
+                introducedBlocks.push(...this.extend('y', 'start'));
+            }
+
+        } while (introducedBlocks.length !== lastCycleIntroducedCount);
         
-        // New rows needed bottom?
-        if (gridPixelOrigin.y + gridSize.y < (this.viewportSize.y + this.preloadDistance)) {
-            introducedBlocks.push(...this.extend('y', 'end'));
-        }
-
-        // New rows needed top?
-        if (gridPixelOrigin.y > -this.preloadDistance) {
-            introducedBlocks.push(...this.extend('y', 'start'));
-        }
-
         return introducedBlocks;
     }
 
@@ -280,35 +324,43 @@ export class Collage<Metadata=void> {
      */
     private remove(): Block<Metadata>[] {
         
-        // Calculate the current origin of the grid relative to the canvas
-        const gridPixelOrigin: Point = {
-            x: (this.origin.x + (this.blockOrigin.x * this.blockSize)),
-            y: (this.origin.y + (this.blockOrigin.y * this.blockSize)) 
-        };
-        
-        // Calculate the size of the grid
-        const gridSize: Size = multiply(this.blockCounts, vectorOf(this.blockSize));
-        
         // Collect removed blocks
         const removedBlocks: Block<Metadata>[] = [];
-        
-        // Remove rows from the bottom?
-        if (gridPixelOrigin.y + gridSize.y > (this.viewportSize.y + this.blockSize * 2)) {
-            removedBlocks.push(...this.shrink('y', 'end'));
-        }
 
-        if (gridPixelOrigin.y < -(this.blockSize * 2)) {
-            removedBlocks.push(...this.shrink('y', 'start'));
-        }
+        // Re-perform the process until no more blocks need to be removed
+        let lastCycleRemovedCount = 0;
+        
+        do {
+            lastCycleRemovedCount = removedBlocks.length;
 
-        if (gridPixelOrigin.x + gridSize.x > (this.viewportSize.x + this.blockSize * 2)) {
-            removedBlocks.push(...this.shrink('x', 'end'));
-        }
-        
-        if (gridPixelOrigin.x < -(this.blockSize * 2)) {
-            removedBlocks.push(...this.shrink('x', 'start'));
-        }
-        
+            // Calculate the current origin of the grid relative to the canvas
+            const gridPixelOrigin: Point = {
+                x: (this.origin.x + (this.blockOrigin.x * this.blockSize)),
+                y: (this.origin.y + (this.blockOrigin.y * this.blockSize)) 
+            };
+            
+            // Calculate the size of the grid
+            const gridSize: Size = multiply(this.blockCounts, vectorOf(this.blockSize));
+
+            // Remove rows from the bottom?
+            if (gridPixelOrigin.y + gridSize.y > (this.viewportSize.y + this.blockSize * 2)) {
+                removedBlocks.push(...this.shrink('y', 'end'));
+            }
+
+            if (gridPixelOrigin.y < -(this.blockSize * 2)) {
+                removedBlocks.push(...this.shrink('y', 'start'));
+            }
+
+            if (gridPixelOrigin.x + gridSize.x > (this.viewportSize.x + this.blockSize * 2)) {
+                removedBlocks.push(...this.shrink('x', 'end'));
+            }
+            
+            if (gridPixelOrigin.x < -(this.blockSize * 2)) {
+                removedBlocks.push(...this.shrink('x', 'start'));
+            }
+
+        } while (removedBlocks.length !== lastCycleRemovedCount);
+            
         return removedBlocks;
     }
 

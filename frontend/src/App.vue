@@ -6,15 +6,16 @@ import Collage from './components/collage/Collage.vue';
 import { GameClient } from './client/game'
 import type { Challenge } from './client/model/challenge'
 import { preloadImage } from './client/image';
-</script>
-
-<script lang="ts">
+import { Scoreboard } from './scoreboard';
 
 const challenges = ref<Challenge[]>([]);
 const backdropStyle = ref<CSSProperties>({});
 
+// Component refs
+const collage = ref<InstanceType<typeof Collage> | null>();
+
 // Should main content be displayed, or the nice slideshow?
-const slideshowMode = ref<boolean>(false);
+const slideshowMode = ref<boolean>(hasPassedAgeCheck());
 
 // A queued challenge UUID
 let queuedChallengeUuid: string|undefined = undefined;
@@ -35,6 +36,10 @@ if (challengeDeeplinkUuid.length >= 36) {
     } else {
         console.log('Waiting for age check...');
         queuedChallengeUuid = challengeDeeplinkUuid;
+    }
+} else {
+    if (hasPassedAgeCheck()) {
+        nextChallenge();
     }
 }
 
@@ -122,26 +127,19 @@ async function nextChallenge(uuid?: string) {
  * Return to the intro.
  */
 function backToIntro() {
+
+    if (challenges.value.length > 0 && collage.value) {
+
+        // Give the collage a little flick to show that it's draggable
+        collage.value.flick(500, 500);
+
+        // Reset our score
+        Scoreboard.lose();
+    }
+    
     challenges.value.length = 0;
     history.replaceState({}, "", "/");
     backdropStyle.value.backgroundImage = 'none';
-}
-
-/**
- * Toggle the slideshow, if there's nothing else going on
- */
-function toggleSlideshow() {
-
-    // Only allowed if they've passed age verification
-    if (!hasPassedAgeCheck()) {
-        return;
-    }
-
-    if (challenges.value.length > 0) {
-        backToIntro();
-    } else {
-        slideshowMode.value = !slideshowMode.value;
-    }
 }
 
 </script>
@@ -194,19 +192,22 @@ footer {
 
     <header>
         <nav>
-            <div class="logo" v-on:click="toggleSlideshow"></div>
+            <div class="logo" v-on:click="backToIntro()"></div>
         </nav>
     </header>
     <main>
 
-        <div class="backdrop" :class="{'blurred': !slideshowMode}" v-bind:style="backdropStyle">
-            <Collage v-if="challenges.length == 0" :interactive="slideshowMode" v-on:next-game-please="nextChallenge"></Collage>
+        <div class="backdrop" :class="{'blurred': !hasPassedAgeCheck() || challenges.length > 0}">
+            <Collage ref="collage" v-on:next-game-please="nextChallenge" :interactive="challenges.length === 0 && hasPassedAgeCheck()"></Collage>
         </div>
 
-        <TransitionGroup v-if="!slideshowMode">
+        <TransitionGroup>
 
-            <!-- Show the intro if there are no challenges yet -->
-            <Intro v-if="challenges.length === 0" @did-accept-intro="acceptIntro" :key="'intro-text'" class="slide"></Intro>
+            <!-- Show the intro if there are no challenges yet, and we haven't passed the age-check -->
+            <Intro v-if="challenges.length === 0&& !hasPassedAgeCheck()" @did-accept-intro="acceptIntro" :key="'intro-text'" class="slide"></Intro>
+
+            <!-- Show nothing, revealling the collage behind otherwise -->
+            <div v-if="challenges.length === 0 && hasPassedAgeCheck()" class="slide"></div>
 
             <!-- Show the challenge from the list otherwise-->
             <Game v-for="challenge in challenges" :challenge="challenge" :key="challenge.uuid" v-on:next-game-please="nextChallenge" class="slide"></Game>
@@ -215,7 +216,7 @@ footer {
 
     </main>
 
-    <footer v-on:click="toggleSlideshow">
+    <footer>
         made with love by <a href="https://github.com/retsplines/isthisyiff" target="_blank">@retsplines</a>
     </footer>
 

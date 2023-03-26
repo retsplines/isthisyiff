@@ -1,12 +1,31 @@
 <script setup lang="ts">
+
 import { ref, onMounted, watch, onUnmounted } from 'vue'
 import { Collage } from './collage';
 import { BlockContentState, type Point, type PresentationBlock, type Size, type Vector } from './types';
-import { invert, multiply, subtract, vectorOf } from './helpers';
+import { invert, multiply, divide, add, subtract, vectorOf, functionOf } from './helpers';
 import { BlockImageDownloader } from './downloader';
 import { debounce, fromEvent, interval } from 'rxjs';
+import type { FullGestureState } from '@vueuse/gesture';
 
 const emit = defineEmits(['nextGamePlease']);
+
+// Presentational metadata for blocks
+type BlockMeta = {
+
+    // The opacity of the block
+    opacity: number,
+
+    // The URL of the image to show in the block
+    url: string | null,
+
+    // A target UUID of a challenge to visit when the block is clicked in interactive mode
+    uuid: string | null,
+
+    // Prescaled versions of the block image to avoid re-scaling each draw
+    prescaledImageCanvas: HTMLCanvasElement | null,
+    prescaledForBlockSize: number | null
+};
 
 /**
  * Define the configurable component properties.
@@ -23,26 +42,19 @@ const props = withDefaults(defineProps<{
     interactive: false
 });
 
+
+// Debug mode doesn't load images, just draws placeholders
+const isDebugging = false;
+
 // Define defaults & max/mins
-const maxBlockSize = 500;
-const minBlockSize = 100;
-const defaultBlockSize = 250;
-const driftRate: Vector = {
-    x: -70,
-    y: -70
-};
+const maxZoomLevel = 3;
+const minZoomLevel = 1;
+const defaultBlockSize = 150;
 
-// Presentational metadata for blocks
-type BlockMeta = {
-
-    // The opacity of the block
-    opacity: number,
-
-    // The URL of the image to show in the block
-    url: string | null,
-
-    // A target UUID of a challenge to visit when the block is clicked in interactive mode
-    uuid: string | null
+// The current drift rate
+let driftRate: Vector = {
+    x: 0,
+    y: 0
 };
 
 // Canvas & context
@@ -54,7 +66,9 @@ const context = ref<CanvasRenderingContext2D | null>();
 const collage = new Collage<BlockMeta>({
     opacity: 0,
     url: null,
-    uuid: null
+    uuid: null,
+    prescaledImageCanvas: null,
+    prescaledForBlockSize: null
 });
 
 // A client for downloading block images
@@ -62,13 +76,17 @@ const blockImageDownloader = new BlockImageDownloader<BlockMeta>();
 
 // Handle obtaining images for new blocks
 collage.getBlockLifecycleChanges().subscribe(blockLifecycleChanges => {
-    if (blockLifecycleChanges.newState === BlockContentState.New) {
+    if (!isDebugging && blockLifecycleChanges.newState === BlockContentState.New) {
         blockImageDownloader.assignBlocks(blockLifecycleChanges.blocks);
     }
 });
 
+// The zoom level we're currently at
+let zoomLevel = 1;
+
 // The last mouse position
 let lastMousePosition: Point|null = null;
+let lastMousePositionTime: Date|null = null;
 
 // Animation running?
 const running = ref<boolean>(false);
@@ -76,16 +94,8 @@ const running = ref<boolean>(false);
 // Are we automatically drifting?
 let isDrifting = true;
 
-// The last location at which the mouse button up/down event fired
-// Only one will be set at once
-let mouseUpPosition: Point|null = null;
-let mouseDownPosition: Point|null = null;
-
-// The last position that the mouse moved to while dragging
-let lastDragPosition: Point|null = null;
-
-// Keep a snapshot of the last time a frame was painted so that we can move things on the right amount each frame
-let lastPaintAt: DOMHighResTimeStamp|null = null;
+// Keep a snapshot of the last time a frame was painted
+let lastPaintAt: number|null = null;
 
 // Keep a reference to the last animation frame request
 let animationFrameHandle: number|null = null;
@@ -100,7 +110,7 @@ onMounted(() => {
     }
 
     // Find the size of the canvas and initialise the view
-    context.value = canvas.value.getContext('2d');
+    context.value = canvas.value.getContext('2d', { alpha: false });
 
     // Register for resize updates
     const resizes = fromEvent(window, 'resize');
@@ -109,12 +119,17 @@ onMounted(() => {
     );
     debouncedResizes.subscribe(resize);
 
-
     // Simulate an initial resize
-    resize();
+    setTimeout(() => {
 
-    // Showtime
-    start();
+        // Initial resize
+        resize();
+
+        // Showtime
+        start();
+
+    });
+    
 });
 
 /**
@@ -136,184 +151,166 @@ watch(props, (newProps) => {
 });
 
 /**
+ * Return the position of a view coordinate in the whole collage.
+ */
+function viewToCollage(position: Point): Point {
+    return subtract(position, collage.getOrigin());
+}
+
+/**
+ * Set the view to a requested zoom level (ratio to scale defaultBlockSize by).
+ * 
+ * @param delta 
+ */
+function zoom(requestedLevel: number, zoomAtPoint: Point|null = null) {
+
+    if (requestedLevel < minZoomLevel) {
+        console.warn(`Requested zoom level ${requestedLevel} is too low`);
+        return;
+    }
+    if (requestedLevel > maxZoomLevel) {
+        console.warn(`Requested zoom level ${requestedLevel} is too high`);
+        return;
+    }
+
+    // Compute the scale difference between zoom levels
+    const zoomFactor = requestedLevel / zoomLevel;
+
+    // Update the new zoom level
+    zoomLevel = requestedLevel;
+
+    // If a reference origin wasn't provided, just use the centre of the view
+    const referenceOrigin = zoomAtPoint ? zoomAtPoint : divide(collage.getViewportSize(), vectorOf(2)); 
+
+    // Capture the current mouse/touch position in world-space
+    const currentCollagePosition = viewToCollage(referenceOrigin);
+
+    // Compute where this will be after scaling
+    const collagePositionAfterScaling = multiply(currentCollagePosition, vectorOf(zoomFactor));
+
+    // Compute the difference of these
+    const collagePositionDifference = subtract(currentCollagePosition, collagePositionAfterScaling);
+
+    // Perform the zoom
+    const newBlockSize = defaultBlockSize * zoomLevel;
+    collage.setBlockSize(newBlockSize, true);
+
+    // Apply the changes, only calculating bounds after both are done
+    collage.shiftOrigin(collagePositionDifference);
+}
+
+/**
+ * Handle a drag event
+ * 
+ * @param mouseEvent 
+ */
+ function handleDrag(mouseState: FullGestureState<'drag'>) {
+
+    // Ignore events if not interactive
+    if (!props.interactive || !canvas.value) {
+        return;
+    }
+
+    // If multiple touches are active, they're likely pinching
+    if (window.TouchEvent && mouseState.event instanceof TouchEvent && mouseState.event.touches.length > 1) {
+        return;
+    }
+
+    // Mouse is down, we're dragging
+    const distanceDragged: Size = invert(vectorOf(...mouseState.delta));
+
+    // Last event in the drag?
+    if(mouseState.last) {
+
+        // Was this actually just a tap/click?
+        if (mouseState.distance === 0) {
+
+            // Adjust the mouse position
+            const canvasMouse = subtract(vectorOf(...mouseState.xy), vectorOf(canvas.value.getBoundingClientRect().left, canvas.value.getBoundingClientRect().top));
+            
+            // Clicked - find the block at this position
+            const clickedBlocks = collage.present().filter(presentationBlock =>
+                canvasMouse.x >= presentationBlock.pixelPosition.x &&
+                canvasMouse.y >= presentationBlock.pixelPosition.y &&
+                canvasMouse.x <= (presentationBlock.pixelPosition.x + collage.getBlockSize()) &&
+                canvasMouse.y <= (presentationBlock.pixelPosition.y + collage.getBlockSize())
+            );
+
+            if (clickedBlocks.length > 0) {
+                emit('nextGamePlease', clickedBlocks[0].block.metadata.uuid);
+            }
+
+        } else {
+            driftRate = multiply(vectorOf(...mouseState.velocities), vectorOf(300));
+        }
+    }
+
+    collage.shiftOrigin(invert(distanceDragged));
+}
+
+/**
+* Handle a pinch event.
+* 
+* @param mouseEvent 
+*/
+function handlePinch(pinchState: FullGestureState<'pinch'>) {
+
+    // Ignore events if not interactive
+    if (!props.interactive) {
+        return;
+    }
+
+    zoom(zoomLevel * (pinchState.delta[0] > 0 ? 1.05 : 0.95), vectorOf(...pinchState.origin));
+
+    if (pinchState.event) {
+        pinchState.event.preventDefault();
+        pinchState.event.stopPropagation();
+    }
+
+    return false;
+}
+
+/**
  * Handle the mouse wheel being scrolled.
  * 
  * @param wheelEvent 
  */
-function handleWheel(wheelEvent: WheelEvent) {
+function handleWheel(wheelState: FullGestureState<'wheel'>) {
 
-    if (!props.interactive) {
+    if (!props.interactive || !(wheelState.event instanceof WheelEvent)) {
         return;
     }
 
-    // Stop auto-drifting
-    isDrifting = false;
-
-    const changePixels = wheelEvent.deltaY > 0 ? 15 : -15;
-    const currentBlockSize = collage.getBlockSize();
-
-    if (currentBlockSize + changePixels < minBlockSize || currentBlockSize + changePixels > maxBlockSize) {
+    if (wheelState.event.offsetX === 0 && wheelState.event.offsetY === 0) {
         return;
     }
 
-    const factor = (currentBlockSize / (currentBlockSize + changePixels));
-    collage.setBlockSize(changePixels + currentBlockSize);
-
-    // Also shift the origin by a displacment amount so it seems like we zoom into the cursor
-    const currentOrigin = collage.getOrigin();
-    collage.shiftOrigin({
-        x: (wheelEvent.offsetX - currentOrigin.x) * (factor - 1),
-        y: (wheelEvent.offsetY - currentOrigin.y) * (factor - 1)
-    });
+    const changeBy = wheelState.movement[1] < 0 ? 1.05 : 0.95;
+    zoom(zoomLevel * changeBy, vectorOf(wheelState.event.offsetX, wheelState.event.offsetY));
+    
+    return false;
 }
 
 /**
- * Handle a touch event.
+ * Mouse moved over the view.
  * 
- * @param touchEvent 
+ * @param wheelEvent 
  */
-function handleTouch(touchEvent: TouchEvent) {
+function handleMove(mouseState: FullGestureState<'move'>) {
 
     // Ignore events if not interactive
-    if (!props.interactive) {
+    if (!props.interactive || !canvas.value) {
         return;
     }
 
-    switch (touchEvent.type) {
-        case 'touchstart':
-            mouseDown({
-                x: touchEvent.touches[0].clientX,
-                y: touchEvent.touches[0].clientY
-            });
-            break;
-        case 'touchend':
-            mouseUp({
-                x: touchEvent.touches[0].clientX,
-                y: touchEvent.touches[0].clientY
-            });
-            break;
-        case 'touchmove':
-            mouseMove({
-                x: touchEvent.touches[0].clientX,
-                y: touchEvent.touches[0].clientY
-            });
-            break;
-    }
-}
+    // Adjust the mouse position
+    const canvasMouse = subtract(
+        vectorOf(...mouseState.xy),
+        vectorOf(canvas.value.getBoundingClientRect().left, canvas.value.getBoundingClientRect().top)
+    );
 
-/**
- * Handle a touch event.
- * 
- * @param mouseEvent 
- */
-function handleMouse(mouseEvent: MouseEvent) {
-
-    // Ignore events if not interactive
-    if (!props.interactive) {
-        return;
-    }
-
-    switch (mouseEvent.type) {
-        case 'mousedown':
-            mouseDown({
-                x: mouseEvent.offsetX,
-                y: mouseEvent.offsetY
-            });
-            break;
-        case 'mouseup':
-            mouseUp({
-                x: mouseEvent.offsetX,
-                y: mouseEvent.offsetY
-            });
-            break;
-        case 'mousemove':
-            mouseMove({
-                x: mouseEvent.offsetX,
-                y: mouseEvent.offsetY
-            });
-            break;
-    }
-}
-
-/**
- * Mouse down fired here.
- */
-function mouseDown(position: Point) {
-
-    // Not possible if control isn't allowed
-    if (!props.interactive) {
-        return;
-    }
-
-    mouseDownPosition = position;
-    mouseUpPosition = null;
-    isDrifting = false;
-}
-
-
-/**
- * Mouse up fired here.
- */
-function mouseUp(position: Point) {
-
-    // Not possible if control isn't allowed
-    if (!props.interactive) {
-        return;
-    }
-
-    if (!lastDragPosition) {
-
-        // No dragging took place, so this was a click
-        // Find the block that was clicked
-        const clickedBlocks: PresentationBlock<BlockMeta>[] = collage.present().filter(presentationBlock => (
-            position.x >= presentationBlock.pixelPosition.x &&
-            position.x <= presentationBlock.pixelPosition.x + collage.getBlockSize() &&
-            position.y >= presentationBlock.pixelPosition.y &&
-            position.y <= presentationBlock.pixelPosition.y + collage.getBlockSize()
-        ));
-
-        if (clickedBlocks.length === 0) {
-            // Nothing clicked
-            return;
-        }
-
-        emit('nextGamePlease', clickedBlocks[0].block.metadata.uuid);
-    }
-
-    mouseUpPosition = position;
-    mouseDownPosition = null;
-    lastDragPosition = null;
-    isDrifting = false;
-}
-
-/**
- * Mouse move fired.
- */
-function mouseMove(position: Point) {
-
-    lastMousePosition = {
-        x: position.x,
-        y: position.y
-    };
-
-    if (mouseDownPosition) {
-
-        if (!lastDragPosition) {
-            lastDragPosition = position;
-        }
-
-        // Mouse is down, we're dragging
-        const distanceDragged: Size = subtract(lastDragPosition, position);
-        if (distanceDragged.x === 0 && distanceDragged.y === 0) {
-            return;
-        }
-
-        collage.shiftOrigin(invert(distanceDragged));
-
-        // Reset the drag start position
-        lastDragPosition = position;
-    }
-  
+    lastMousePosition = canvasMouse;
+    lastMousePositionTime = new Date();
 }
 
 /**
@@ -341,7 +338,7 @@ function stop() {
 /**
  * Update the view.
  */
-function update(paintedAt: DOMHighResTimeStamp) {
+function update(now: DOMHighResTimeStamp) {
 
     // Stopped already?
     if (!running.value) {
@@ -350,21 +347,33 @@ function update(paintedAt: DOMHighResTimeStamp) {
 
     // First time around?
     if (lastPaintAt === null) {
-        lastPaintAt = paintedAt;
+        lastPaintAt = now;
     }
 
-    // Calculate how much time passed
-    const sinceLast = paintedAt - lastPaintAt;
-    
+    const paintDelta = now - lastPaintAt;
+
+    // Prevent unnecessary redraws
+    if (paintDelta === 0) {
+        // Re-request an update
+        animationFrameHandle = requestAnimationFrame(update);
+        return;
+    }
+
+    // Cubically reduce the drift rate
+    if (driftRate.x !== 0 || driftRate.y !== 0) {
+        driftRate = functionOf(driftRate, d => (d < 1 && d > -1) ? 0 : (d * 0.95));
+    }
+
     // Shift an appropriate amount for the passed time
     if (isDrifting) {
-        collage.shiftOrigin(multiply(driftRate, vectorOf(sinceLast / 1000)));
+        collage.shiftOrigin(multiply(driftRate, vectorOf(paintDelta / 1000)));
     }
 
-    // Redraw
-    draw(false);
-    lastPaintAt = paintedAt;
-    
+    // Always redraw
+    draw(isDebugging);
+    lastPaintAt = now;
+
+
     // Re-request an update
     animationFrameHandle = requestAnimationFrame(update);
 }
@@ -397,7 +406,9 @@ function resize() {
             y: canvas.value.height
         });
     }
-    
+
+    // Zoom to 1x
+    zoom(1);
     start();
 }
 
@@ -407,19 +418,33 @@ function resize() {
 function draw(drawDebugLines: boolean = false) {
     
     // Only continue if mounting was successful
-    if (!context.value) {
+    const resolvedContext = context.value;
+    if (!resolvedContext) {
         return;
     }
-    
-    context.value.clearRect(0, 0, context.value.canvas.width, context.value.canvas.height);
-
-    // A block that should be highlighted at the end, once all blocks are drawn
-    let highlightedBlock: PresentationBlock<BlockMeta>|null = null;
 
     // The current block size
     const currentBlockSize = collage.getBlockSize();
+    
+    // The draw time now
+    const drawTime = new Date();
 
-    for (const presentationBlock of collage.present()) {
+    // Time since mouse movement
+    const sinceMouseMove = drawTime.getTime() - (lastMousePositionTime ? lastMousePositionTime.getTime() : 0);
+    
+    // A block that should be highlighted at the end, once all blocks are drawn
+    let highlightedBlock: PresentationBlock<BlockMeta>|null = null;
+    const blocksToDraw = collage.present();
+
+    // Clear view
+    resolvedContext.clearRect(0, 0, resolvedContext.canvas.width, resolvedContext.canvas.height);
+
+    // Track an index throughout
+    let blockIndex = -1;
+
+    for (const presentationBlock of blocksToDraw) {
+
+        blockIndex ++;
 
         // Do we need to draw this block?
         if (!presentationBlock.isOnScreen) {
@@ -432,37 +457,38 @@ function draw(drawDebugLines: boolean = false) {
             // No point doing anything with this block - it's not visible yet/anymore
             continue;
         }
-
+ 
         if (drawDebugLines) {
-            context.value.fillStyle = 'grey';
-            context.value.strokeStyle = 'black';
-            context.value.fillRect(presentationBlock.pixelPosition.x, presentationBlock.pixelPosition.y, currentBlockSize, currentBlockSize);
-            context.value.beginPath();
-            context.value.rect(presentationBlock.pixelPosition.x, presentationBlock.pixelPosition.y, currentBlockSize, currentBlockSize);
-            context.value.stroke();
+            resolvedContext.beginPath();
+            resolvedContext.fillStyle = blockIndex % 2 == 0 ? 'grey' : 'white';
+            resolvedContext.strokeStyle = 'black';
+            resolvedContext.lineWidth = 1;
+            resolvedContext.fillRect(presentationBlock.pixelPosition.x, presentationBlock.pixelPosition.y, currentBlockSize, currentBlockSize);
+            resolvedContext.rect(presentationBlock.pixelPosition.x, presentationBlock.pixelPosition.y, currentBlockSize, currentBlockSize);
+            resolvedContext.stroke();
         }
 
         // Draw the image if it's available
         if (presentationBlock.block.state === BlockContentState.Ready && presentationBlock.block.sourceImage) {
 
             if (presentationBlock.block.metadata.opacity < 1) {
-                context.value.globalAlpha = Math.min(1, presentationBlock.block.metadata.opacity);
+                resolvedContext.globalAlpha = Math.min(1, presentationBlock.block.metadata.opacity);
             }
 
-            context.value.drawImage( 
+            resolvedContext.drawImage( 
                 presentationBlock.block.sourceImage,
                 presentationBlock.pixelPosition.x - 1, presentationBlock.pixelPosition.y - 1,
                 currentBlockSize + 1, currentBlockSize + 1
             );
 
             if (presentationBlock.block.metadata.opacity < 1) {
-                context.value.globalAlpha = 1;
+                resolvedContext.globalAlpha = 1;
                 presentationBlock.block.metadata.opacity += 0.025;
             }
         }
 
         // Draw a box around the block if we're interactive and it's moused-over
-        if (props.interactive && lastMousePosition) {
+        if (props.interactive && sinceMouseMove < 250 && lastMousePosition) {
             if (lastMousePosition.x >= presentationBlock.pixelPosition.x &&
                 lastMousePosition.x <= presentationBlock.pixelPosition.x + currentBlockSize &&
                 lastMousePosition.y >= presentationBlock.pixelPosition.y &&
@@ -473,26 +499,46 @@ function draw(drawDebugLines: boolean = false) {
         }
 
         if (drawDebugLines) {
-            context.value.fillStyle = 'grey';
-            context.value.strokeStyle = 'black';
-            context.value.strokeText(presentationBlock.block.id.toString(10), presentationBlock.pixelPosition.x + 10, presentationBlock.pixelPosition.y + 10);
-            context.value.strokeText(presentationBlock.block.id.toString(10), presentationBlock.pixelPosition.x + currentBlockSize - 10, presentationBlock.pixelPosition.y + 10);
-            context.value.strokeText(presentationBlock.block.id.toString(10), presentationBlock.pixelPosition.x + 10, presentationBlock.pixelPosition.y + currentBlockSize - 10);
-            context.value.strokeText(presentationBlock.block.id.toString(10), presentationBlock.pixelPosition.x + currentBlockSize - 10, presentationBlock.pixelPosition.y + currentBlockSize - 10);
-            context.value.strokeText(`${presentationBlock.block.id}`, presentationBlock.pixelPosition.x + currentBlockSize / 2, presentationBlock.pixelPosition.y + currentBlockSize / 2);
-            context.value.stroke();
+            resolvedContext.strokeStyle = 'black';
+            resolvedContext.lineWidth = 1;
+            resolvedContext.beginPath();
+            resolvedContext.strokeText(presentationBlock.block.id.toString(10), presentationBlock.pixelPosition.x + 15, presentationBlock.pixelPosition.y + 15);
+            resolvedContext.strokeText(presentationBlock.block.id.toString(10), presentationBlock.pixelPosition.x + currentBlockSize - 25, presentationBlock.pixelPosition.y + 15);
+            resolvedContext.strokeText(presentationBlock.block.id.toString(10), presentationBlock.pixelPosition.x + 15, presentationBlock.pixelPosition.y + currentBlockSize - 15);
+            resolvedContext.strokeText(presentationBlock.block.id.toString(10), presentationBlock.pixelPosition.x + currentBlockSize - 25, presentationBlock.pixelPosition.y + currentBlockSize - 15);
+            resolvedContext.stroke();
         }
     }
 
     // Draw a box around a highlighted block?
     if (highlightedBlock) {
-        context.value.strokeStyle = 'white';
-        context.value.lineWidth = 4;
-        context.value.beginPath();
-        context.value.rect(highlightedBlock.pixelPosition.x, highlightedBlock.pixelPosition.y, currentBlockSize - 3, currentBlockSize - 3);
-        context.value.stroke();
+        resolvedContext.beginPath();
+        resolvedContext.strokeStyle = 'white';
+        resolvedContext.lineWidth = 4;
+        resolvedContext.rect(highlightedBlock.pixelPosition.x, highlightedBlock.pixelPosition.y, currentBlockSize - 3, currentBlockSize - 3);
+        resolvedContext.stroke();
+    }
+
+    // Mark the centre of the collage
+    if (drawDebugLines) {
+        // Collage full size
+        const collageSize = collage.getCollageSize();
+        const collageCentre = add(multiply(collageSize, vectorOf(0.5)), collage.getBlockOrigin());
+        resolvedContext.beginPath();
+            resolvedContext.fillStyle = 'red';
+            resolvedContext.beginPath();
+            resolvedContext.fillRect(collageCentre.x - 5, collageCentre.y - 5, 10, 10);
+            resolvedContext.stroke();
     }
 }
+
+function flick(x: number, y: number) {
+    driftRate = vectorOf(x, y);
+};
+
+defineExpose({
+    flick
+});
 
 </script>
 
@@ -501,6 +547,7 @@ function draw(drawDebugLines: boolean = false) {
         width: 100%;
         height: 100%;
         overflow: hidden;
+        background: var(--ity-white);
         canvas {
             position: absolute;
         }
@@ -511,13 +558,10 @@ function draw(drawDebugLines: boolean = false) {
     <div id="canvas-container" ref="container">
         <canvas
             ref="canvas"
-            @mousemove="handleMouse"
-            @mousedown="handleMouse"
-            @mouseup="handleMouse"
-            @touchstart="handleTouch"
-            @touchmove="handleTouch"
-            @touchend="handleTouch"
-            @wheel="handleWheel"
+            v-move="handleMove"
+            v-wheel="handleWheel"
+            v-drag="handleDrag"
+            v-pinch="handlePinch"
         ></canvas>
     </div>
 </template>

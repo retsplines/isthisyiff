@@ -4,6 +4,7 @@ import logging
 import os
 import hashlib
 import csv
+import json
 import urllib.request
 import uuid
 import argparse
@@ -11,20 +12,42 @@ import time
 from PIL import Image
 
 """
-Ridiculous monster Python script that does (almost) everything to ETL e621 data in CSV format into IsThisYiff
+Ridiculous monster Python script that does (almost) everything to ETL e621 data in CSV format into IsThisYiff.
+It can do everything in one go, but generally, because Amazon charge for 'Inference Hours', It will be cheaper to do it in two stages.
+
+The first stage downloads originals & uploads them to S3. This is the slow bit since these can be large and e621's CDN can be slow.
+The second stage invokes the Rekognition model, crops the image and uploads it to S3.
+
+For this, there's the --stage-1 and --stage-2 switches.
+
+   import.py --stage 1 posts.csv    # After this, you'll have orig/ files downloaded & uploaded to S3
+
+   # Start the model now
+
+   import.py --stage 2 posts.csv    # After this, they'll be analysed and metadata written to meta/
+
+   # Stop the model now!
+
+   import.py --stage 3 posts.csv    # After this, crops will be uploaded, and they'll be added to the DB
+
 """
 
 rekognition_client = boto3.client('rekognition')
 s3_client = boto3.client('s3')
 dynamodb_client = boto3.client('dynamodb')
 
+# Local directories used
+CROP_DIR = 'crop/'
+META_DIR = 'meta/'
+ORIG_DIR = 'orig/'
+
 # This is the secret used to generate a crop filename from an original filename
 # If it's not kept secret, finding a fullsize-image from a crop image is trivial.
 CROP_SECRET = os.environ.get('ITY_CROP_SECRET', '')
-MIN_CONFIDENCE = 25
+MIN_CONFIDENCE = 35
 
 # S3 bucket details
-bucket = os.environ.get('ITY_BUCKET_NAME', 'source-images.isthisyiff.retsplin.es')
+bucket = os.environ.get('ITY_BUCKET_NAME', 'source-images.isthisyiff.net')
 prefix = os.environ.get('ITY_PREFIX', 'test')
 
 # Prefix under which cropped images are placed
@@ -39,11 +62,21 @@ table_name = os.environ.get('ITY_DYNAMO_TABLE', '')
 # Set up the command
 parser = argparse.ArgumentParser(description='Reads a CSV of e621 posts, downloads the images, detects faces & uploads the result to AWS (S3 & DynamoDB)')
 parser.add_argument('csv_path', help='The path to the source CSV', action='store', type=str)
-parser.add_argument('--no-db', help='Optionally, skip writing to DynamoDB - just print', action='store_true', dest='no_db', default=False)
-parser.add_argument('--skip-downloaded', help='Optionally, skip a file if we see it is already downloaded', action='store_true', dest='skip_downloaded', default=False)
+
+# Stages to skip
+parser.add_argument('--stage', help='Set the stage to run - see the comment at the start of import.py', action='store', type=int, dest='stage', default=None)
+
+# What to do if a file already exists locally
+parser.add_argument('--skip-if-downloaded', help='Optionally, skip processing a file completely if we see it is already downloaded', action='store_true', dest='skip_if_downloaded', default=False)
 parser.add_argument('--redownload-existing', help='Optionally, redownload existing files rather than using the local copy', action='store_true', dest='redownload_existing', default=False)
-parser.add_argument('--skip-if-downloaded', help='Optionally, skip a file if we see it is already downloaded', action='store_true', dest='skip_if_downloaded', default=False)
+
+# Skip database inserts
+parser.add_argument('--no-db', help='Optionally, skip inserting into the DB', action='store_true', dest='no_db', default=False)
+
+# Logging
 parser.add_argument('--log-percent-change', help='Optionally, how much the %% complete must change by to emit a log', action='store', dest='log_percent_change', type=float, default=0.01)
+
+# Starting at specific parts of a file
 parser.add_argument('--start-at-id', help='Optionally, start at an ID', action='store', dest='start_at_id', type=int, default=None)
 
 opts = parser.parse_args()
@@ -60,6 +93,13 @@ run_id = int(time.time())
 logger.info('IsThisYiff importer (Run ID %d)' % run_id)
 
 def find_faces(post):
+
+    # See if there is a metadata file containing face data for this post
+    meta_path = META_DIR + post['orig_name'] + '.json'
+    if os.path.exists(meta_path):
+        logger.info('Metadata file for %s exists: %s' % (post['orig_name'], meta_path))
+        with open(meta_path, 'r') as meta_file:
+            return json.load(meta_file)
 
     object_key = ((prefix + '/') if prefix else '') + post['orig_name']
     logger.info('Finding custom labels for %s...' % object_key)
@@ -90,6 +130,11 @@ def find_faces(post):
                 best_confidence_face = customLabel
                 best_confidence = customLabel['Confidence']
 
+    # Write the meta file, even if no face was detected
+    with open(meta_path, 'w') as meta_file:
+        json.dump(best_confidence_face, meta_file)
+        logger.info('Wrote metadata file for %s: %s' % (post['orig_name'], meta_path))
+
     return best_confidence_face
 
 def make_cropped_image(post, left, top, width, height):
@@ -106,18 +151,22 @@ def make_cropped_image(post, left, top, width, height):
         im_cropped = im_cropped.convert("RGB")
 
     # Save the image out to the 'crop' subdirectory
-    im_cropped.save('crop/' + new_name)
+    im_cropped.save(CROP_DIR + new_name)
     logger.info('Wrote cropped image out as %s' % new_name)
 
-    return 'crop/' + new_name
+    return CROP_DIR + new_name
 
 def download_orig(post):
     """
     Download the original post to cache.
     """
     logger.info('Downloading original for %s (%s)...' % (post['id'], post['url']))
-    urllib.request.urlretrieve(post['url'], post['orig_path'])
+    try:
+        urllib.request.urlretrieve(post['url'], post['orig_path'])
+    except:
+        return False
     logger.info('Downloaded %s' % post['url'])
+    return True
 
 def upload(source, object_key):
     """
@@ -153,7 +202,7 @@ def check_vars():
         logger.error('! Cannot operate without a Rekognition Custom Labels Model ARN - check ITY_MODEL_ARN')
         result = False
 
-    if not table_name:
+    if not table_name and not opts.no_db:
         logger.error('! Cannot operate without a DynamoDB table name - check ITY_DYNAMO_TABLE')
         result = False
 
@@ -259,7 +308,7 @@ def main():
             # {orig,crop}_path is the local relative path
             # {orig,crop}_name is the basename only
             post['orig_name'] = post['url'].rsplit('/', 1)[1]
-            post['orig_path'] = 'orig/' + post['orig_name']
+            post['orig_path'] = ORIG_DIR + post['orig_name']
 
             progress_rows += 1
           
@@ -274,30 +323,42 @@ def main():
 
             logger.info(' ---------- Processing %s (%s) ----------' % (post['id'], post['orig_path']))
 
-            # File already exists?
-            if os.path.exists(post['orig_path']):
-                if opts.skip_if_downloaded:
-                    logger.warning(
-                        'Skipping %s (%s) completely because we already have the file downloaded (--skip-existing)' % (
-                            post['id'], post['orig_path']
+            if opts.stage == 1 or opts.stage is None:
+
+                # File already exists?
+                if os.path.exists(post['orig_path']):
+                    if opts.skip_if_downloaded:
+                        logger.warning(
+                            'Skipping %s (%s) completely because we already have the file downloaded (--skip-if-downloaded)' % (
+                                post['id'], post['orig_path']
+                            )
                         )
-                    )
-                    continue
-                elif opts.redownload_existing:
-                    logger.warning('Redownloading %s (%s) (--redownload-existing)' % (post['id'], post['orig_path']))
-                    download_orig(post)
+                        continue
+                    elif opts.redownload_existing:
+                        logger.warning('Redownloading %s (%s) (--redownload-existing)' % (post['id'], post['orig_path']))
+                        download_orig(post)
+                    else:
+                        logger.info('Already have %s orig %s - using it' % (post['id'], post['orig_path']))
                 else:
-                    logger.info('Already have %s orig %s - using it' % (post['id'], post['orig_path']))
-            else:
-                # Download the media
-                download_orig(post)
+                    # Download the media
+                    download_orig(post)
+                
+                # Upload the media to S3
+                if not upload(post['orig_path'], post['orig_name']):
+                    logger.warning('%s failed to upload to S3')
+                    continue
             
-            # Upload the media to S3
-            if not upload(post['orig_path'], post['orig_name']):
-                logger.warning('%s failed to upload to S3')
+            # Finished this stage?
+            if opts.stage == 1:
+                logger.info('Stage 1 (--stage = 1) - moving on to next file')
                 continue
 
             face_spec = find_faces(post)
+
+            # Skipping stage?
+            if opts.stage == 2:
+                logger.info('Stage 2 (--stage = 2) - moving on to next file')
+                continue
 
             # Was no face identified?
             if face_spec is None:

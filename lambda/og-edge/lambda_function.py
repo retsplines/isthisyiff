@@ -22,7 +22,7 @@ CONTENT = """<!DOCTYPE html>
         <meta property="og:title" content="Is This Yiff?!" />
         <meta property="og:type" content="website" />
         <meta property="og:image" content="{og_image}" />
-        <meta property="og:url" content="https://isthisyiff.retsplin.es" />
+        <meta property="og:url" content="https://isthisyiff.net" />
         <meta property="og:description" content="A guessing game using artwork from e621.net" />
         <meta property="og:locale" content="en_GB" />
         <meta property="og:site_name" content="Is This Yiff?!" />
@@ -46,10 +46,10 @@ CONTENT = """<!DOCTYPE html>
 """
 
 # Define the resource root
-RESOURCE_CROP_ROOT_URL = 'https://source-images.isthisyiff.retsplin.es/crop/'
+RESOURCE_CROP_ROOT_URL = 'https://source-images.isthisyiff.net/crop/'
 
 # Define the app path
-BASE_URI = 'https://isthisyiff.retsplin.es/'
+BASE_URI = 'https://isthisyiff.net/'
 
 # Set up the logging subsystem
 logger = logging.getLogger()

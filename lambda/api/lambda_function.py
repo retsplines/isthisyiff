@@ -17,8 +17,8 @@ logger.addHandler(stdout_handler)
 TABLE_NAME = "isthisyiff"
 
 # Define the resource root
-RESOURCE_CROP_ROOT_URL = 'https://source-images.isthisyiff.retsplin.es/crop/'
-RESOURCE_ORIG_ROOT_URL = 'https://source-images.isthisyiff.retsplin.es/'
+RESOURCE_CROP_ROOT_URL = 'https://source-images.isthisyiff.net/crop/'
+RESOURCE_ORIG_ROOT_URL = 'https://source-images.isthisyiff.net/'
 
 # Define e621 URL for source links
 E621_POST_URL = 'https://e621.net/posts/'
@@ -179,7 +179,7 @@ def increment_report_reason_count(post_uuid, reason):
                 'reason': reason
             }),
             'email': 'A user reported a post for reason: ' + reason + '<br><br>' + \
-                'View: https://isthisyiff.retsplin.es/#' + post_uuid
+                'View: https://isthisyiff.net/#' + post_uuid
         }),
         MessageStructure='json',
         Subject='Reported content on IsThisYiff: ' + post_uuid + ' (' + reason + ')'

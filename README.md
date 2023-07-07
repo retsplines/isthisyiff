@@ -1,6 +1,6 @@
-# [`IsThisYiff?!`](https://isthisyiff.retsplin.es/)
+# [`IsThisYiff?!`](https://isthisyiff.net/)
 
-**[IsThisYiff?!](https://isthisyiff.retsplin.es/)** is a guessing game where you are shown a piece of artwork from [e621.net](https://e621.net/) cropped down to just a face and asked the question: _Is This [Yiff](https://en.wikipedia.org/wiki/Yiff)?_
+**[IsThisYiff?!](https://isthisyiff.net/)** is a guessing game where you are shown a piece of artwork from [e621.net](https://e621.net/) cropped down to just a face and asked the question: _Is This [Yiff](https://en.wikipedia.org/wiki/Yiff)?_
 
 ## How?
 

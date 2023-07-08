@@ -1,0 +1,61 @@
+name: Deploy
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  
+  # Deployment of the frontend
+  deploy_frontend:
+    name: Deploy Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Install dependencies
+        uses: bahmutov/npm-install@v1
+        with:
+          working-directory: ./frontend
+      - name: Build
+        run: npm run build
+        working-directory: ./frontend
+      - name: Deploy to S3
+        run: aws s3 sync ./dist s3://isthisyiff.net --delete
+        working-directory: ./frontend
+      - name: Create CloudFront Invalidation
+        run: aws cloudfront create-invalidation --distribution-id ${{ secrets.AWS_CF_DISTRIBUTION_ID }} --paths "/*"
+  
+  # Deployment of the Lambda Functions
+  deploy_lambdas:
+    name: Deploy Lambda Functions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Deploy API Lambda
+        uses: appleboy/lambda-action@master
+        with:
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_region: eu-west-1
+          function_name: isthisyiff-api
+          source: lambda/api/lambda_function.py
+      - name: Deploy OG Card Edge Lambda
+        uses: appleboy/lambda-action@master
+        with:
+          aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_region: us-east-1
+          function_name: isthisyiff-edge-og-images
+          source: lambda/og-edge/lambda_function.py

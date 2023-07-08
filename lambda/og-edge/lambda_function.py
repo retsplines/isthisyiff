@@ -85,7 +85,7 @@ def lambda_handler(event, context):
     redirect_to = BASE_URI
 
     # The default OG image
-    og_image = BASE_URI + 'assets/image/isthisyiff-logo.png'
+    og_image = BASE_URI + 'image/isthisyiff-logo.png'
     
     # Match the URL
     uri_matches = re.match('\/challenge\/(([0-9A-F]){8}-([0-9A-F]){4}-([0-9A-F]){4}-([0-9A-F]){4}-([0-9A-F]){12})', request['uri'])

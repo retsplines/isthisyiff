@@ -7,6 +7,10 @@
     width: 100%;
 }
 
+.invisible {
+    display: none !important;
+}
+
 header {
     background-color: var(--color-background);
     box-shadow: rgb(0 0 0 / 50%) 0 0px 10px;

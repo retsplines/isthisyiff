@@ -15,6 +15,7 @@ logger.addHandler(stdout_handler)
 
 # Define the DynamoDB Table Name
 TABLE_NAME = "isthisyiff"
+TABLE_REGION = "eu-west-1"
 
 # Define the resource root
 RESOURCE_CROP_ROOT_URL = 'https://source-images.isthisyiff.net/crop/'
@@ -44,7 +45,7 @@ REPORTS_SNS_ARN = os.environ.get('REPORTS_SNS_ARN', None)
 MAX_PREVIEWS = 250
 
 # Creating the DynamoDB Client
-dynamodb_client = boto3.client('dynamodb', region_name="eu-west-1")
+dynamodb_client = boto3.client('dynamodb', region_name=TABLE_REGION)
 
 # Create an SNS client
 sns_client = boto3.client('sns')
@@ -170,6 +171,13 @@ def increment_report_reason_count(post_uuid, reason):
     if reason not in REPORT_REASONS:
         raise Exception('Invalid report reason. Options are %s' % (','.join(REPORT_REASONS)))
     
+    # DynamoDB console shortcut URLs
+    dynamo_query_url = 'https://eu-west-1.console.aws.amazon.com/dynamodbv2/home?region=%s#item-explorer?maximize=true&operation=QUERY&pk=%s&table=%s' % (
+        TABLE_REGION,
+        post_uuid,
+        TABLE_NAME
+    )
+
     # Publish a notification
     sns_client.publish(
         TargetArn=REPORTS_SNS_ARN,
@@ -178,8 +186,9 @@ def increment_report_reason_count(post_uuid, reason):
                 'uuid': post_uuid,
                 'reason': reason
             }),
-            'email': 'A user reported a post for reason: ' + reason + '<br><br>' + \
-                'View: https://isthisyiff.net/#' + post_uuid
+            'email': 'A user reported a post for reason: ' + reason + '\r\n\r\n' + \
+                'View: https://isthisyiff.net/#' + post_uuid + '\r\n' + \
+                'View in DynamoDB: ' + dynamo_query_url
         }),
         MessageStructure='json',
         Subject='Reported content on IsThisYiff: ' + post_uuid + ' (' + reason + ')'

@@ -185,7 +185,7 @@ async function reportPostFor(reason: ReportReason) {
                     <span v-if="Scoreboard.getBestStreak()">&nbsp;Best streak so far: <strong>{{ Scoreboard.getBestStreak() }}</strong></span>
                 </p>
                 <p class="detail">
-                    <span v-if="answer.statistics.correct_guesses + answer.statistics.incorrect_guesses === 0">
+                    <span v-if="answer.statistics.correct_guesses + answer.statistics.incorrect_guesses === 1">
                         You're the first to guess this image!
                     </span>
                     <span v-else>

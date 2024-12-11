@@ -362,7 +362,6 @@ function update(now: DOMHighResTimeStamp) {
     // Cubically reduce the drift rate
     if (driftRate.x !== 0 || driftRate.y !== 0) {
         driftRate = functionOf(driftRate, d => Math.floor(Math.abs(d) < 25 ? 0 : d * 0.95));
-        console.log(driftRate);
     }
 
     // Shift an appropriate amount for the passed time

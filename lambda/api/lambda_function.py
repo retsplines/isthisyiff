@@ -174,7 +174,7 @@ def increment_report_reason_count(post, reason):
     # DynamoDB console shortcut URLs
     dynamo_query_url = 'https://eu-west-1.console.aws.amazon.com/dynamodbv2/home?region=%s#item-explorer?maximize=true&operation=QUERY&pk=%s&table=%s' % (
         TABLE_REGION,
-        post,
+        post['uuid']['S'],
         TABLE_NAME
     )
 

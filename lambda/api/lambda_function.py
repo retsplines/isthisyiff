@@ -162,7 +162,7 @@ def increment_post_counter(post_uuid, was_correct):
         }
     )
     
-def increment_report_reason_count(post_uuid, reason):
+def increment_report_reason_count(post, reason):
     """
     Increment a report reason counter.
     """
@@ -174,7 +174,7 @@ def increment_report_reason_count(post_uuid, reason):
     # DynamoDB console shortcut URLs
     dynamo_query_url = 'https://eu-west-1.console.aws.amazon.com/dynamodbv2/home?region=%s#item-explorer?maximize=true&operation=QUERY&pk=%s&table=%s' % (
         TABLE_REGION,
-        post_uuid,
+        post,
         TABLE_NAME
     )
 
@@ -183,21 +183,22 @@ def increment_report_reason_count(post_uuid, reason):
         TargetArn=REPORTS_SNS_ARN,
         Message=json.dumps({
             'default': json.dumps({
-                'uuid': post_uuid,
+                'uuid': post['uuid']['S'],
                 'reason': reason
             }),
             'email': 'A user reported a post for reason: ' + reason + '\r\n\r\n' + \
-                'View: https://isthisyiff.net/#' + post_uuid + '\r\n' + \
+                'View: https://isthisyiff.net/#' + post['uuid']['S'] + '\r\n' + \
+                'View on e621: ' + get_orig_url(post) + '\r\n' + \
                 'View in DynamoDB: ' + dynamo_query_url
         }),
         MessageStructure='json',
-        Subject='Reported content on IsThisYiff: ' + post_uuid + ' (' + reason + ')'
+        Subject='Reported content on IsThisYiff: ' + post['uuid']['S'] + ' (' + reason + ')'
     )
     
     dynamodb_client.update_item(
         TableName=TABLE_NAME,
         Key={
-            'uuid': {'S': post_uuid}
+            'uuid': {'S': post['uuid']['S']}
         },
         UpdateExpression=("ADD %s :inc" % ('reports_' + reason)),
         ExpressionAttributeValues={
@@ -229,7 +230,7 @@ def route_post_report_challenge(event, context):
     post = get_post(post_uuid)
     
     # Update the post
-    increment_report_reason_count(post_uuid, reason)
+    increment_report_reason_count(post, reason)
     return build_json_response({})
     
 def route_get_challenge(event, context):

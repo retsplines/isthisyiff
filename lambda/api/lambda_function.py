@@ -187,6 +187,7 @@ def increment_report_reason_count(post, reason):
                 'reason': reason
             }),
             'email': 'A user reported a post for reason: ' + reason + '\r\n\r\n' + \
+                'The post is rated: ' + post['rating']['S'] + '\r\n' + \
                 'View: https://isthisyiff.net/#' + post['uuid']['S'] + '\r\n' + \
                 'View image on e621: ' + get_orig_url(post) + '\r\n' + \
                 'View post on e621: ' + E621_POST_URL + str(post['id']['N']) + '\r\n' + \

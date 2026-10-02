@@ -210,7 +210,7 @@ footer {
             <div v-if="challenges.length === 0 && hasPassedAgeCheck()" class="slide"></div>
 
             <!-- Show the challenge from the list otherwise-->
-            <Game v-for="challenge in challenges" :challenge="challenge" :key="challenge.uuid" v-on:next-game-please="nextChallenge" class="slide"></Game>
+            <Game v-for="challenge in challenges" :challenge="challenge" :key="challenge.uuid" v-on:next-game-please="nextChallenge" v-on:back-to-intro="backToIntro" class="slide"></Game>
 
         </TransitionGroup>
 

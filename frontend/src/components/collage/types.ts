@@ -17,7 +17,7 @@ export enum BlockContentState {
 
     // Content had a problem downloading
     // This state stops infinite retrys slamming the backend owo
-    Errored = 'errored'
+    Errored = 'errored',
 };
 
 /**

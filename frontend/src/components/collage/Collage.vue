@@ -16,6 +16,10 @@ type BlockMeta = {
     // The opacity of the block
     opacity: number,
 
+    // The target opacity for the block, used for fade-in/out animations
+    targetOpacity: number,
+    onTargetOpacityReached?: () => void,
+
     // The URL of the image to show in the block
     url: string | null,
 
@@ -27,6 +31,16 @@ type BlockMeta = {
     prescaledForBlockSize: number | null
 };
 
+type BlockUpdateBehaviour = {
+
+    // The period in seconds after which blocks are selected for updating
+    periodSeconds: number,
+
+    // The number of blocks to update each period
+    count: number,
+
+};
+
 /**
  * Define the configurable component properties.
  */
@@ -35,11 +49,16 @@ const props = withDefaults(defineProps<{
     /**
      * Whether mouse control is allowed.
      */
-    interactive: boolean
+    interactive: boolean,
+
+    /**
+     * The behaviour for updating blocks over time.
+     */
+    blockUpdateBehaviour: BlockUpdateBehaviour|null,
 
 }>(), {
-    // Defaults
-    interactive: false
+    interactive: false,
+    blockUpdateBehaviour: null
 });
 
 
@@ -65,6 +84,8 @@ const context = ref<CanvasRenderingContext2D | null>();
 // The underlying managed collage layout
 const collage = new Collage<BlockMeta>({
     opacity: 0,
+    targetOpacity: 1,
+    onTargetOpacityReached: undefined,
     url: null,
     uuid: null,
     prescaledImageCanvas: null,
@@ -96,6 +117,9 @@ let isDrifting = true;
 
 // Keep a snapshot of the last time a frame was painted
 let lastPaintAt: number|null = null;
+
+// Keep a reference to the last time a block update was performed
+let lastBlockUpdateAt: number|null = null;
 
 // Keep a reference to the last animation frame request
 let animationFrameHandle: number|null = null;
@@ -359,6 +383,30 @@ function update(now: DOMHighResTimeStamp) {
         return;
     }
 
+    // Apply block update behaviour if defined
+    if (props.blockUpdateBehaviour) {
+        if (lastBlockUpdateAt === null || now - lastBlockUpdateAt >= props.blockUpdateBehaviour.periodSeconds * 1000) {
+
+            // Perform the block update
+            lastBlockUpdateAt = now;
+
+            // Select random blocks to update based on the count specified in the block update behaviour
+            const blocks = collage.getBlocks();
+            for (let i = 0; i < props.blockUpdateBehaviour.count; i++) {
+                const randomBlock = blocks[Math.floor(Math.random() * blocks.length)];
+                if (randomBlock) {
+                    // Set the target opacity, and a handler for the opacity level being reached
+                    randomBlock.metadata.targetOpacity = 0;
+                    randomBlock.metadata.onTargetOpacityReached = () => {
+                        randomBlock.state = BlockContentState.New;
+                        randomBlock.metadata.targetOpacity = 1;
+                        blockImageDownloader.assignBlocks([randomBlock]);
+                    };
+                }
+            }
+        }
+    }   
+
     // Cubically reduce the drift rate
     if (driftRate.x !== 0 || driftRate.y !== 0) {
         driftRate = functionOf(driftRate, d => Math.floor(Math.abs(d) < 25 ? 0 : d * 0.95));
@@ -480,10 +528,32 @@ function draw(drawDebugLines: boolean = false) {
                 presentationBlock.pixelPosition.x - 1, presentationBlock.pixelPosition.y - 1,
                 currentBlockSize + 1, currentBlockSize + 1
             );
+          
+            if (drawDebugLines) {
+                // Draw the opacity as text to debug
+                resolvedContext.fillStyle = 'red';
+                resolvedContext.font = '12px Arial';
+                resolvedContext.fillText(presentationBlock.block.metadata.targetOpacity.toFixed(2), presentationBlock.pixelPosition.x + 5, presentationBlock.pixelPosition.y + 15);
+                resolvedContext.fillStyle = 'white';
+                resolvedContext.fillText(presentationBlock.block.metadata.opacity.toFixed(2), presentationBlock.pixelPosition.x + 5, presentationBlock.pixelPosition.y + 30);
+            }
 
-            if (presentationBlock.block.metadata.opacity < 1) {
-                resolvedContext.globalAlpha = 1;
-                presentationBlock.block.metadata.opacity += 0.025;
+            resolvedContext.globalAlpha = 1;
+
+            // Lower?
+            if (presentationBlock.block.metadata.opacity < presentationBlock.block.metadata.targetOpacity) {
+                presentationBlock.block.metadata.opacity = Math.min(1, presentationBlock.block.metadata.opacity + 0.025);
+            
+            // Higher?
+            } else if (presentationBlock.block.metadata.opacity > presentationBlock.block.metadata.targetOpacity) {
+                presentationBlock.block.metadata.opacity = Math.max(0, presentationBlock.block.metadata.opacity - 0.025);
+            
+            // Reached target opacity
+            } else {
+                if (presentationBlock.block.metadata.onTargetOpacityReached) {
+                    presentationBlock.block.metadata.onTargetOpacityReached();
+                    presentationBlock.block.metadata.onTargetOpacityReached = undefined;
+                }
             }
         }
 

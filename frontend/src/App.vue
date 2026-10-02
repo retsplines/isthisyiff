@@ -198,7 +198,7 @@ footer {
     <main>
 
         <div class="backdrop" :class="{'blurred': !hasPassedAgeCheck() || challenges.length > 0}">
-            <Collage ref="collage" v-on:next-game-please="nextChallenge" :interactive="challenges.length === 0 && hasPassedAgeCheck()"></Collage>
+            <Collage ref="collage" v-on:next-game-please="nextChallenge" :interactive="challenges.length === 0 && hasPassedAgeCheck()" :block-update-behaviour="{ periodSeconds: 0.6, count: 1 }"></Collage>
         </div>
 
         <TransitionGroup>

@@ -9,7 +9,7 @@ import { Scoreboard } from '@/scoreboard';
 import { ref } from 'vue';
 import ArtPane from './ArtPane.vue'
 
-const emit = defineEmits(['nextGamePlease']);
+const emit = defineEmits(['nextGamePlease', 'backToIntro']);
 
 const props = defineProps<{
     challenge: Challenge
@@ -92,7 +92,7 @@ async function reportPostFor(reason: ReportReason) {
 
 .result {
     margin: 2rem auto auto auto;
-    max-width: 500px;
+    max-width: 600px;
 
     .answer {
 
@@ -200,7 +200,7 @@ async function reportPostFor(reason: ReportReason) {
             <!-- Text underneath the box with link & report options -->
             <div class="result-controls">
                 <a :href="answer.source.url" target="_blank">See it on e621</a> &nbsp; | &nbsp;
-                <a v-if="reportingState === 'closed'" v-on:click="reportingState = 'choosing'">Report Post</a>
+                <a v-if="reportingState === 'closed'" v-on:click="reportingState = 'choosing'">Report</a>
                 <span v-else-if="reportingState === 'choosing'" class="report-buttons">
                     <button class="button is-small" title="Missing source image" v-on:click="reportPostFor('missing')">Missing Image</button>
                     <button class="button is-small" title="Shouldn't be shown on IsThisYiff" v-on:click="reportPostFor('unsuitable')">Unsuitable Image</button>
@@ -212,6 +212,8 @@ async function reportPostFor(reason: ReportReason) {
                 <span v-else-if="reportingState === 'thanks'">
                     Thanks, I'll look into this.
                 </span>
+                 &nbsp; | &nbsp;
+                <a v-on:click="emit('backToIntro')">Browse</a>
             </div>
         </div>
 

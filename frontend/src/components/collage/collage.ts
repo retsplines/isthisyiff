@@ -71,6 +71,13 @@ export class Collage<Metadata=void> {
     constructor(private defaultBlockMetadata: Metadata) {}
 
     /**
+     * The array of blocks currently in the collage.
+     */
+    public getBlocks(): Block<Metadata>[] {
+        return this.blocks;
+    }
+
+    /**
      * Initialise, or reinitialise, the collage state given the block size & size of the viewport it is to be presented in.
      */
     public init(blockSize: number, viewportSize: Size) {

@@ -21,6 +21,11 @@ export class BlockImageDownloader<BlockMetadata extends BasicBlockMetadata> {
     private readonly previewBatchSize = 250;
 
     /**
+     * The low watermark for the preview pool, below which a refill will be triggered.
+     */
+    private readonly previewPoolLowWatermark = 50;
+
+    /**
      * A pool of available preview URLs for assignment.
      * Note that the previews in this pool have not yet had content downloaded, they're just URL references & sizes.
      */
@@ -65,7 +70,7 @@ export class BlockImageDownloader<BlockMetadata extends BasicBlockMetadata> {
         try {
 
             // Obtain enough URLs to satisfy this request
-            while (this.previewPool.length < blocks.length) {
+            while (this.previewPool.length < blocks.length || this.previewPool.length < this.previewPoolLowWatermark) {
                 console.debug(`Only ${this.previewPool.length} previews remaining in pool, requesting ${this.previewBatchSize} more`);
                 await this.refillPool();
             }

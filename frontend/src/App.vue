@@ -198,13 +198,13 @@ footer {
     <main>
 
         <div class="backdrop" :class="{'blurred': !hasPassedAgeCheck() || challenges.length > 0}">
-            <Collage ref="collage" v-on:next-game-please="nextChallenge" :interactive="challenges.length === 0 && hasPassedAgeCheck()" :block-update-behaviour="{ periodSeconds: 0.6, count: 1 }"></Collage>
+            <Collage ref="collage" v-on:next-game-please="nextChallenge" :interactive="challenges.length === 0 && hasPassedAgeCheck()" :block-update-behaviour="challenges.length === 0 && !hasPassedAgeCheck() ? { periodSeconds: 1, count: 1 } : null"></Collage>
         </div>
 
         <TransitionGroup>
 
             <!-- Show the intro if there are no challenges yet, and we haven't passed the age-check -->
-            <Intro v-if="challenges.length === 0&& !hasPassedAgeCheck()" @did-accept-intro="acceptIntro" :key="'intro-text'" class="slide"></Intro>
+            <Intro v-if="challenges.length === 0 && !hasPassedAgeCheck()" @did-accept-intro="acceptIntro" :key="'intro-text'" class="slide"></Intro>
 
             <!-- Show nothing, revealling the collage behind otherwise -->
             <div v-if="challenges.length === 0 && hasPassedAgeCheck()" class="slide"></div>

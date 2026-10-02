@@ -196,17 +196,17 @@ def flush():
     if len(post_insertions) > 0:
         logger.debug('Got %d buffered post insertions - flushing' % len(post_insertions))
         placeholders = ['%s'] * len(post_insertions[0])
-        cur.executemany("INSERT INTO posts VALUES(" + ','.join(placeholders) + ")", post_insertions)
+        cur.executemany("INSERT INTO posts VALUES(" + ','.join(placeholders) + ") ON DUPLICATE KEY UPDATE id=id", post_insertions)
         post_insertions = []
     
     if (len(post_tag_insertions) > 0):
         logger.debug('Got %d buffered post_tag insertions - flushing' % len(post_tag_insertions))
-        cur.executemany(f"INSERT INTO post_tags VALUES(%s, %s)", post_tag_insertions)
+        cur.executemany(f"INSERT INTO post_tags VALUES(%s, %s) ON DUPLICATE KEY UPDATE post_id=post_id", post_tag_insertions)
         post_tag_insertions = []
     
     if (len(source_insertions) > 0):
         logger.debug('Got %d buffered source insertions - flushing' % len(source_insertions))
-        cur.executemany(f"INSERT INTO sources VALUES (NULL, %s, %s)", source_insertions)
+        cur.executemany(f"INSERT INTO sources VALUES (NULL, %s, %s) ON DUPLICATE KEY UPDATE id=id", source_insertions)
         source_insertions = []
     
     cur.close()

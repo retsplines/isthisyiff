@@ -27,6 +27,8 @@ frontend/dist-ssr
 
 # Data
 *.csv
+data/meta/*
+data/orig/*
 
 # Editor directories and files
 .vscode/*
@@ -37,3 +39,5 @@ frontend/dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.env.local

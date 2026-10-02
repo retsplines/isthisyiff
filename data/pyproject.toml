@@ -1,0 +1,12 @@
+[project]
+name = "isthisyiff_convert_posts_mysql"
+version = "0.1.0"
+description = "Transform tool for IsThisYiff"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "boto3>=1.43.107",
+    "mysql-connector-python>=26.7.0",
+    "pillow>=12.3.0",
+    "python-dateutil>=2.9.0.post0",
+]

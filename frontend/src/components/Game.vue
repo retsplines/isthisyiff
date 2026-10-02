@@ -202,9 +202,9 @@ async function reportPostFor(reason: ReportReason) {
                 <a :href="answer.source.url" target="_blank">See it on e621</a> &nbsp; | &nbsp;
                 <a v-if="reportingState === 'closed'" v-on:click="reportingState = 'choosing'">Report Post</a>
                 <span v-else-if="reportingState === 'choosing'" class="report-buttons">
-                    <button class="button is-small" title="Shouldn't be shown on IsThisYiff" v-on:click="reportPostFor('unsuitable')">Unsuitable</button>
-                    <button class="button is-small" title="Copyright complaint" v-on:click="reportPostFor('copyright')">Copyright</button>
-                    <button class="button is-small" title="Has the wrong rating" v-on:click="reportPostFor('wrong_rating')">It's {{ answer.result.actual === 'e' ? 'Safe' : 'Yiff' }}!</button>
+                    <button class="button is-small" title="Missing source image" v-on:click="reportPostFor('missing')">Missing Image</button>
+                    <button class="button is-small" title="Shouldn't be shown on IsThisYiff" v-on:click="reportPostFor('unsuitable')">Unsuitable Image</button>
+                    <button class="button is-small" title="Copyright complaint" v-on:click="reportPostFor('copyright')">Copyright Violation</button>
                 </span>
                 <span v-else-if="reportingState === 'sending'">
                     Please wait...

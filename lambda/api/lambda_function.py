@@ -25,7 +25,7 @@ RESOURCE_ORIG_ROOT_URL = 'https://source-images.isthisyiff.net/'
 E621_POST_URL = 'https://e621.net/posts/'
 
 # Define report reasons
-REPORT_REASONS = ['wrong_rating', 'copyright', 'unsuitable']
+REPORT_REASONS = ['missing', 'copyright', 'unsuitable']
 
 # Define whether to use local images or hotlink them from e621
 HOTLINK_IMAGES = os.getenv("HOTLINK_IMAGES", 'False').lower() in ('true', '1', 't')
